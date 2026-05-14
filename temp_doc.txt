@@ -1,0 +1,226 @@
+📄
+ Project Requirement Document (PRD)
+Project Name: 
+CloudDrive
+ (Mini Cloud Storage System)
+1. 
+📌
+ Project Overview
+CloudDrive
+ is a web-based cloud storage application that allows users to upload, store, manage, and share files online. The system is inspired by platforms like Google Drive but is designed with a simplified scope suitable for a mid-semester MCA project.
+The application provides secure authentication, file management, folder organization, and cloud-based storage using AWS services.
+2. 
+🎯
+ Objectives
+Build a full-stack cloud storage system using Java backend and React frontend
+Implement real-world cloud architecture using AWS
+Enable users to manage files (upload, download, delete, share)
+Demonstrate understanding of REST APIs, authentication, and cloud deployment
+3. 
+👥
+ Target Users
+Students
+Individual users needing simple cloud storage
+Academic evaluators (for grading)
+4. 
+🧱
+ Tech Stack
+Backend
+Java 17+
+Spring Boot
+Spring Security (JWT Authentication)
+Hibernate (JPA)
+Maven
+Frontend
+React.js
+Tailwind CSS / Bootstrap
+Database
+PostgreSQL (Amazon RDS)
+Cloud Infrastructure
+AWS EC2 (Backend hosting)
+AWS S3 (File storage)
+Tools
+IntelliJ IDEA
+Postman
+Git & GitHub
+5. 
+🏗️
+ System Architecture
+Frontend (React)
+↓
+Spring Boot REST API (EC2)
+↓
+PostgreSQL Database (RDS)
+↓
+AWS S3 (File Storage)
+6. 
+✨
+ Features & Functional Requirements
+6.1 Authentication
+User registration with email and password
+Login using JWT authentication
+Secure protected routes
+6.2 File Management
+Upload File
+Upload files to S3 bucket
+Generate unique file names
+Store file metadata in database
+Download File
+Download via S3 URL or backend streaming
+View File List
+Display all uploaded files
+Show metadata: name, type, size, upload date
+Delete File
+Delete from S3
+Remove corresponding DB record
+6.3 Folder Management
+Create folders
+Nested folder structure (parent-child relation)
+Assign files to folders
+6.4 File Sharing
+Generate shareable link
+Options:
+Public URL
+Pre-signed URL (secure, time-limited)
+6.5 Search Functionality
+Search files by:
+File name
+File type
+6.6 File Preview
+Preview images and PDFs directly in browser
+Use S3 URL for rendering
+7. 
+🧩
+ Feature → Technical Mapping
+Feature
+Implementation
+Login/Signup
+Spring Security + JWT
+Upload File
+Spring Boot → S3
+Download File
+S3 URL / streaming
+File List
+Database metadata
+Delete File
+S3 + DB deletion
+File Sharing
+Public/Signed URLs
+Folder Structure
+Parent-child DB model
+Search
+SQL queries
+Preview
+Direct S3 access
+8. 
+🗄️
+ Database Design
+Users Table
+id (Primary Key)
+name
+email
+password
+Files Table
+id (Primary Key)
+file_name
+file_url
+ (S3 link)
+file_type
+size
+upload_date
+user_id
+ (Foreign Key)
+Folders Table
+id (Primary Key)
+name
+parent_id
+ (Self reference)
+user_id
+ (Foreign Key)
+9. 
+🔐
+ Security Requirements
+Password hashing (
+BCrypt
+)
+JWT-based authentication
+Secure API endpoints
+Optional: Pre-signed URLs for secure file access
+10. 
+🚀
+ Development Plan & Timeline
+Phase 1: Setup (Day 1)
+Install Java & IDE
+Initialize Spring Boot project
+Add dependencies
+Phase 2: Authentication (Day 1–2)
+Register API
+Login API
+JWT implementation
+Phase 3: File Upload (Day 2–3)
+Integrate AWS S3
+Upload API
+Store metadata
+Phase 4: File Operations (Day 3–4)
+List files
+Download files
+Delete files
+Phase 5: Folder System (Day 4)
+Create folders
+Implement hierarchy
+Phase 6: File Sharing (Day 5)
+Generate shareable links
+Phase 7: Search (Day 5)
+Implement search queries
+Phase 8: Frontend (Day 5–6)
+Authentication UI
+Dashboard UI
+File listing
+Phase 9: Preview Feature (Day 6)
+Image/PDF preview
+Phase 10: Deployment (Day 7)
+Deploy backend on EC2
+Setup RDS
+Configure S3
+11. 
+⚙️
+ Key Implementation Details
+File Upload Logic
+Use AWS SDK
+Generate unique filenames
+Upload to S3
+Store file URL in DB
+File Sharing
+Public link (simple)
+Pre-signed URL (secure, recommended)
+12. 
+⚠️
+ Risks & Mitigation
+Risks
+Overcomplicated folder structure
+Time spent excessively on UI
+Misconfiguration of AWS services
+Mitigation
+Keep folder system basic
+Focus on backend functionality first
+Limit AWS usage to EC2, S3, and RDS
+13. 
+✅
+ Success Criteria
+Users can upload/download/delete files successfully
+Files are stored and retrieved from S3
+Authentication works securely
+Application is deployed and accessible online
+All core features are functional
+14. 
+📈
+ Future Enhancements (Optional)
+Drag-and-drop upload
+File versioning
+AI-based file tagging
+Real-time sync
+Mobile responsiveness improvements
+📌
+ Conclusion
+CloudDrive
+ is a practical, scalable mini cloud storage system that demonstrates full-stack development, cloud integration, and real-world architecture. The project balances complexity and feasibility, making it ideal for a mid-semester MCA submission while also being strong enough for internship portfolios.
