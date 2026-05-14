@@ -42,14 +42,10 @@ export const authService = {
   },
 
   // Register new user with validation
-  register: async (firstName, lastName, email, password, confirmPassword) => {
+  register: async (name, email, password) => {
     // Input validation
-    if (!firstName || firstName.trim().length < 2) {
-      throw { message: "First name must be at least 2 characters" };
-    }
-    
-    if (!lastName || lastName.trim().length < 2) {
-      throw { message: "Last name must be at least 2 characters" };
+    if (!name || name.trim().length < 2) {
+      throw { message: "Name must be at least 2 characters" };
     }
     
     if (!validationService.isValidEmail(email)) {
@@ -62,15 +58,10 @@ export const authService = {
         message: Object.values(passwordValidation.errors).filter(Boolean).join(', ') 
       };
     }
-    
-    if (password !== confirmPassword) {
-      throw { message: "Passwords do not match" };
-    }
 
     try {
       const response = await api.post("/auth/register", {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        name: name.trim(),
         email: email.toLowerCase().trim(),
         password,
       });
