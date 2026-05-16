@@ -4,11 +4,21 @@ import AppShell from '../components/AppShell';
 import DriveSidebar from '../components/DriveSidebar';
 import DriveTopbar from '../components/DriveTopbar';
 import { authService } from '../services/authService';
+import fileService from '../services/fileService';
+import activityService from '../services/activityService';
 
 function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
+  const [notification, setNotification] = useState(null);
   const navigate = useNavigate();
+
+  const showNotification = useCallback((message, type = "success") => {
+    setNotification({ message, type });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  }, []);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -51,18 +61,29 @@ function UploadPage() {
       }));
 
       try {
+        // Simulate upload progress
+        const intervalId = setInterval(() => {
+          setUploadProgress(prev => {
+            const current = prev[file.name] || 0;
+            if (typeof current !== 'number') return prev;
+            return {
+              ...prev,
+              [file.name]: Math.min(current + 15, 90)
+            };
+          });
+        }, 200);
+
         // Use actual fileService API
-        const response = await fileService.uploadFile(file);
+        const uploadedFile = await fileService.uploadFile(file);
+        clearInterval(intervalId);
         
-        // Simulate upload progress (in real implementation, 
-        // this would come from the API with progress events)
-        for (let i = 0; i <= 100; i += 20) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-          setUploadProgress(prev => ({
-            ...prev,
-            [file.name]: i
-          }));
-        }
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: 'success'
+        }));
+        
+        showNotification(`File ${file.name} uploaded successfully`, "success");
+        activityService.trackFileOperation('upload', uploadedFile, { timestamp: new Date().toISOString() });
         
         // Remove progress after completion
         setTimeout(() => {
@@ -71,7 +92,7 @@ function UploadPage() {
             delete newProgress[file.name];
             return newProgress;
           });
-        }, 500);
+        }, 3000);
         
       } catch (error) {
         console.error('Upload failed:', error);
@@ -79,12 +100,33 @@ function UploadPage() {
           ...prev,
           [file.name]: 'error'
         }));
+        showNotification(`Failed to upload ${file.name}`, "error");
       }
     }
   };
 
   return (
     <AppShell sidebar={<DriveSidebar active="Upload" />} topbar={<DriveTopbar title="Upload Files" />}>
+      {/* Notification */}
+      {notification && (
+        <div
+          className={`fixed top-20 right-4 z-50 px-md py-sm rounded-lg shadow-lg transition-all duration-500 ease-in-out ${
+            notification.type === "success"
+              ? "bg-success text-on-success"
+              : notification.type === "error"
+              ? "bg-error text-on-error"
+              : "bg-info text-on-info"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {notification.type === "success" && (
+              <span className="material-symbols-outlined text-on-success">check_circle</span>
+            )}
+            {notification.message}
+          </div>
+        </div>
+      )}
+
       <div className="p-lg">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-xl">
@@ -99,7 +141,7 @@ function UploadPage() {
               isDragging
                 ? 'border-primary bg-primary-container text-on-primary-container'
                 : 'border-outline-variant bg-surface text-on-surface'
-            }`}
+            } ${Object.keys(uploadProgress).some(k => typeof uploadProgress[k] === 'number') ? 'opacity-50 pointer-events-none' : ''}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -121,8 +163,9 @@ function UploadPage() {
                     multiple
                     className="hidden"
                     onChange={handleFileSelect}
+                    disabled={Object.keys(uploadProgress).some(k => typeof uploadProgress[k] === 'number')}
                   />
-                  <span className="px-md py-sm bg-primary text-on-primary rounded-lg font-semibold cursor-pointer hover:bg-primary-hover transition-colors">
+                  <span className={`px-md py-sm bg-primary text-on-primary rounded-lg font-semibold transition-colors ${Object.keys(uploadProgress).some(k => typeof uploadProgress[k] === 'number') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-primary-hover'}`}>
                     Browse Files
                   </span>
                 </label>
@@ -136,23 +179,26 @@ function UploadPage() {
               <h2 className="font-h3 text-h3 text-on-surface mb-md">Upload Progress</h2>
               <div className="space-y-md">
                 {Object.entries(uploadProgress).map(([fileName, progress]) => (
-                  <div key={fileName} className="bg-white border border-outline-variant rounded-lg p-md">
+                  <div key={fileName} className="bg-white border border-outline-variant rounded-lg p-md transition-all duration-500">
                     <div className="flex justify-between items-center mb-sm">
-                      <span className="text-body-sm text-on-surface font-medium truncate">
+                      <span className="text-body-sm text-on-surface font-medium truncate flex items-center gap-2">
+                        {progress === 'success' && (
+                          <span className="material-symbols-outlined text-success text-sm">check_circle</span>
+                        )}
                         {fileName}
                       </span>
                       <span className={`text-label-sm ${
-                        progress === 'error' ? 'text-error' : 'text-on-surface-variant'
+                        progress === 'error' ? 'text-error' : progress === 'success' ? 'text-success' : 'text-on-surface-variant'
                       }`}>
-                        {progress === 'error' ? 'Failed' : `${progress}%`}
+                        {progress === 'error' ? 'Failed' : progress === 'success' ? 'Completed' : `${progress}%`}
                       </span>
                     </div>
                     <div className="w-full bg-outline-variant h-2 rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all duration-300 ${
-                          progress === 'error' ? 'bg-error' : 'bg-primary'
+                          progress === 'error' ? 'bg-error' : progress === 'success' ? 'bg-success' : 'bg-primary'
                         }`}
-                        style={{ width: progress === 'error' ? '100%' : `${progress}%` }}
+                        style={{ width: progress === 'error' || progress === 'success' ? '100%' : `${progress}%` }}
                       />
                     </div>
                   </div>

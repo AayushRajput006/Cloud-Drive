@@ -478,16 +478,14 @@ function DashboardPage() {
     );
 
     for (const file of droppedFiles) {
-      const newFile = {
-        id: Date.now() + Math.random(),
-        name: file.name,
-        size: file.size,
-        type: file.type.split("/")[0] || "unknown",
-        createdAt: new Date().toISOString(),
-        modifiedAt: new Date().toISOString(),
-      };
-
-      setFiles((prev) => [...prev, newFile]);
+      try {
+        const uploadedFile = await fileService.uploadFile(file);
+        activityService.trackFileOperation('upload', uploadedFile, { timestamp: new Date().toISOString() });
+        setFiles((prev) => [uploadedFile, ...prev]);
+        showNotification(`${file.name} uploaded successfully`, "success");
+      } catch (err) {
+        showNotification(`Failed to upload ${file.name}`, "error");
+      }
     }
   };
 

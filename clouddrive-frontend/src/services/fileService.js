@@ -1,6 +1,6 @@
 import { authService } from './authService';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'http://localhost:8080';
 
 const fileService = {
   // Upload file
@@ -28,7 +28,16 @@ const fileService = {
       throw new Error('Upload failed');
     }
 
-    return response.json();
+    const fileResponse = await response.json();
+    return {
+      id: String(fileResponse.id),
+      name: fileResponse.fileName,
+      type: fileResponse.fileType || 'unknown',
+      size: fileResponse.size,
+      createdAt: fileResponse.uploadDate,
+      modifiedAt: fileResponse.uploadDate,
+      url: fileResponse.fileUrl
+    };
   },
 
   // List user files
@@ -49,7 +58,16 @@ const fileService = {
         throw new Error('Failed to fetch files');
       }
 
-      return response.json();
+      const data = await response.json();
+      return data.map(file => ({
+        id: String(file.id),
+        name: file.fileName,
+        type: file.fileType || 'unknown',
+        size: file.size,
+        createdAt: file.uploadDate,
+        modifiedAt: file.uploadDate,
+        url: file.fileUrl
+      }));
     } catch (error) {
       console.warn('Backend API not available, using mock data:', error);
       // Return mock data when backend is not available

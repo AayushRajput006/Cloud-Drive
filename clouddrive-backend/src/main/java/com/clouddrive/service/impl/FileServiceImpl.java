@@ -15,18 +15,23 @@ import com.clouddrive.repository.TrashItemRepository;
 import com.clouddrive.repository.UserRepository;
 import com.clouddrive.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -37,15 +42,26 @@ public class FileServiceImpl implements FileService {
     private final FolderRepository folderRepository;
     private final StarredItemRepository starredRepository;
     private final TrashItemRepository trashRepository;
+    private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
+
+    @Value("${aws.s3.bucket-name}")
+    private String bucketName;
+
+    @Value("${aws.s3.presigned-url-expiration-minutes:30}")
+    private long presignedUrlExpirationMinutes;
 
     @Autowired
     public FileServiceImpl(FileItemRepository fileRepository, UserRepository userRepository, 
-                          FolderRepository folderRepository, StarredItemRepository starredRepository, TrashItemRepository trashRepository) {
+                          FolderRepository folderRepository, StarredItemRepository starredRepository, 
+                          TrashItemRepository trashRepository, S3Client s3Client, S3Presigner s3Presigner) {
         this.fileRepository = fileRepository;
         this.userRepository = userRepository;
         this.folderRepository = folderRepository;
         this.starredRepository = starredRepository;
         this.trashRepository = trashRepository;
+        this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
     }
 
     @Override
@@ -75,19 +91,23 @@ public class FileServiceImpl implements FileService {
             throw new RuntimeException("Storage quota exceeded");
         }
 
-        // Create file path
-        String uploadDir = "uploads/" + user.getId();
+        // Create file key for S3
         String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-        Path filePath = Paths.get(uploadDir, fileName);
+        String s3Key = "uploads/" + user.getId() + "/" + fileName;
 
         try {
-            // Create directory if it doesn't exist
-            Files.createDirectories(filePath.getParent());
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(s3Key)
+                    .contentType(file.getContentType())
+                    .build();
 
-            // Save file
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            s3Client.putObject(putObjectRequest, 
+                    RequestBody.fromInputStream(file.getInputStream(), fileSize));
         } catch (IOException e) {
-            throw new RuntimeException("Failed to save file", e);
+            throw new RuntimeException("Failed to read file input stream", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to save file to S3", e);
         }
 
         // Create FileItem entity
@@ -96,7 +116,7 @@ public class FileServiceImpl implements FileService {
             getFileType(file.getContentType()),
             fileSize,
             file.getContentType(),
-            filePath.toString(),
+            s3Key, // Store S3 key as path
             user,
             fileName
         );
@@ -237,9 +257,13 @@ public class FileServiceImpl implements FileService {
                 .orElseThrow(() -> new RuntimeException("File not found"));
         
         try {
-            return Files.readAllBytes(Paths.get(file.getPath()));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read file", e);
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(file.getPath())
+                    .build();
+            return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read file from S3", e);
         }
     }
 
@@ -326,13 +350,16 @@ public class FileServiceImpl implements FileService {
         TrashItem trashItem = trashRepository.findByIdAndUserOptional(trashItemId, user)
                 .orElseThrow(() -> new RuntimeException("Trash item not found"));
         
-        // Delete actual file from filesystem
-        if (trashItem.getFile() != null) {
+        // Delete actual file from S3
+        if (trashItem.getFile() != null && trashItem.getFile().getPath() != null) {
             try {
-                Files.deleteIfExists(Paths.get(trashItem.getFile().getPath()));
-            } catch (IOException e) {
-                // Log error but continue
-                System.err.println("Failed to delete file: " + e.getMessage());
+                DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(trashItem.getFile().getPath())
+                        .build();
+                s3Client.deleteObject(deleteObjectRequest);
+            } catch (Exception e) {
+                System.err.println("Failed to delete file from S3: " + e.getMessage());
             }
         }
         
@@ -362,17 +389,28 @@ public class FileServiceImpl implements FileService {
         FileItem file = fileRepository.findByIdAndOwner(fileId, user)
                 .orElseThrow(() -> new RuntimeException("File not found"));
         
-        // Generate a share token
-        String shareToken = UUID.randomUUID().toString();
-        
-        // Create share link (for now, just return a placeholder URL)
-        String shareUrl = "http://localhost:8080/api/files/shared/" + shareToken;
-        
-        return new ShareFileResponse(
-            file.getId(),
-            file.getName(),
-            shareUrl,
-            LocalDateTime.now().plusDays(7).toInstant(java.time.ZoneOffset.UTC) // Expires in 7 days
-        );
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(file.getPath())
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(presignedUrlExpirationMinutes))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+            String shareUrl = presignedRequest.url().toString();
+
+            return new ShareFileResponse(
+                file.getId(),
+                file.getName(),
+                shareUrl,
+                LocalDateTime.now().plusMinutes(presignedUrlExpirationMinutes).toInstant(java.time.ZoneOffset.UTC)
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate presigned URL", e);
+        }
     }
 }
