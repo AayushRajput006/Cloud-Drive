@@ -20,13 +20,7 @@ export const authService = {
         rememberMe: false // Add remember me functionality
       });
       
-      const { token, user } = response.data;
-      
-      // Store token securely
-      authService.setToken(token);
-      authService.setUserData(user);
-      
-      return response.data;
+      return response.data; // Now returns { message: "OTP sent..." }
     } catch (error) {
       // Handle specific error cases
       if (error.response?.status === 401) {
@@ -38,6 +32,26 @@ export const authService = {
       }
       
       throw error.response?.data || { message: "Login failed" };
+    }
+  },
+
+  // Verify Login OTP
+  verifyLoginOtp: async (email, otp) => {
+    try {
+      const response = await api.post("/auth/verify-login-otp", {
+        email: email.toLowerCase().trim(),
+        otp
+      });
+      
+      const { token, user } = response.data;
+      
+      // Store token securely
+      authService.setToken(token);
+      authService.setUserData(user);
+      
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: "OTP verification failed" };
     }
   },
 
@@ -66,6 +80,24 @@ export const authService = {
         password,
       });
       
+      return response.data; // returns { message: "OTP sent..." }
+    } catch (error) {
+      if (error.response?.status === 409) {
+        throw { message: "Email already registered" };
+      }
+      
+      throw error.response?.data || { message: "Registration failed" };
+    }
+  },
+
+  // Verify Signup OTP
+  verifySignupOtp: async (email, otp) => {
+    try {
+      const response = await api.post("/auth/verify-signup-otp", {
+        email: email.toLowerCase().trim(),
+        otp
+      });
+      
       const { token, user } = response.data;
       
       // Store token securely
@@ -74,11 +106,19 @@ export const authService = {
       
       return response.data;
     } catch (error) {
-      if (error.response?.status === 409) {
-        throw { message: "Email already registered" };
-      }
-      
-      throw error.response?.data || { message: "Registration failed" };
+      throw error.response?.data || { message: "OTP verification failed" };
+    }
+  },
+
+  // Resend OTP
+  resendOtp: async (email) => {
+    try {
+      const response = await api.post("/auth/resend-otp", {
+        email: email.toLowerCase().trim()
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: "Failed to resend OTP" };
     }
   },
 

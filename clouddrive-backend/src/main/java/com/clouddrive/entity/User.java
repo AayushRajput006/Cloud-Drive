@@ -36,6 +36,21 @@ public class User {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "is_verified")
+    private boolean isVerified = false;
+
+    @Column(name = "otp_code")
+    private String otpCode;
+
+    @Column(name = "otp_expiry")
+    private LocalDateTime otpExpiry;
+
+    @Column(name = "failed_attempts")
+    private int failedAttempts = 0;
+
+    @Column(name = "last_otp_sent_at")
+    private LocalDateTime lastOtpSentAt;
+
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<FileItem> files = new HashSet<>();
 
@@ -107,4 +122,19 @@ public class User {
 
     public Set<TrashItem> getTrashItems() { return trashItems; }
     public void setTrashItems(Set<TrashItem> trashItems) { this.trashItems = trashItems; }
+
+    public boolean isVerified() { return isVerified; }
+    public void setVerified(boolean verified) { isVerified = verified; }
+
+    public String getOtpCode() { return otpCode; }
+    public void setOtpCode(String otpCode) { this.otpCode = otpCode; }
+
+    public LocalDateTime getOtpExpiry() { return otpExpiry; }
+    public void setOtpExpiry(LocalDateTime otpExpiry) { this.otpExpiry = otpExpiry; }
+
+    public int getFailedAttempts() { return failedAttempts; }
+    public void setFailedAttempts(int failedAttempts) { this.failedAttempts = failedAttempts; }
+
+    public LocalDateTime getLastOtpSentAt() { return lastOtpSentAt; }
+    public void setLastOtpSentAt(LocalDateTime lastOtpSentAt) { this.lastOtpSentAt = lastOtpSentAt; }
 }

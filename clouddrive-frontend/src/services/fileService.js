@@ -42,12 +42,12 @@ const fileService = {
 
   // List user files
   listFiles: async () => {
-    const token = authService.getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
     try {
+      const token = authService.getToken();
+      if (!token) {
+        return []; // No token yet, return empty array
+      }
+
       const response = await fetch(`${API_BASE_URL}/files`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -69,45 +69,17 @@ const fileService = {
         url: file.fileUrl
       }));
     } catch (error) {
-      console.warn('Backend API not available, using mock data:', error);
-      // Return mock data when backend is not available
-      return [
-        {
-          id: '1',
-          name: 'Document.pdf',
-          type: 'application/pdf',
-          size: 1024 * 500,
-          createdAt: new Date().toISOString(),
-          modifiedAt: new Date().toISOString()
-        },
-        {
-          id: '2',
-          name: 'Image.jpg',
-          type: 'image/jpeg',
-          size: 1024 * 1024 * 2,
-          createdAt: new Date().toISOString(),
-          modifiedAt: new Date().toISOString()
-        },
-        {
-          id: '3',
-          name: 'Presentation.pptx',
-          type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-          size: 1024 * 1024 * 5,
-          createdAt: new Date().toISOString(),
-          modifiedAt: new Date().toISOString()
-        }
-      ];
+      console.warn('Failed to fetch files:', error);
+      return [];
     }
   },
 
   // Search files
   searchFiles: async (query) => {
-    const token = authService.getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
     try {
+      const token = authService.getToken();
+      if (!token) return [];
+
       const response = await fetch(`${API_BASE_URL}/files/search?query=${encodeURIComponent(query)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -120,18 +92,8 @@ const fileService = {
 
       return response.json();
     } catch (error) {
-      console.warn('Backend API not available, using mock search data:', error);
-      // Return mock search data when backend is not available
-      return [
-        {
-          id: '1',
-          name: 'Document.pdf',
-          type: 'application/pdf',
-          size: 1024 * 500,
-          createdAt: new Date().toISOString(),
-          modifiedAt: new Date().toISOString()
-        }
-      ].filter(file => file.name.toLowerCase().includes(query.toLowerCase()));
+      console.warn('Search failed:', error);
+      return [];
     }
   },
 

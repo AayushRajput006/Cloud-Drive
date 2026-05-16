@@ -4,8 +4,16 @@ import com.clouddrive.dto.AuthResponse;
 import com.clouddrive.dto.LoginRequest;
 import com.clouddrive.dto.RegisterRequest;
 
-public interface AuthService {
-    AuthResponse register(RegisterRequest request);
+import com.clouddrive.dto.MessageResponse;
+import com.clouddrive.dto.VerifyOtpRequest;
+import com.clouddrive.dto.ResendOtpRequest;
 
-    AuthResponse login(LoginRequest request);
+public interface AuthService {
+    MessageResponse register(RegisterRequest request);
+    AuthResponse verifySignupOtp(VerifyOtpRequest request);
+    
+    MessageResponse login(LoginRequest request);
+    AuthResponse verifyLoginOtp(VerifyOtpRequest request);
+    
+    MessageResponse resendOtp(ResendOtpRequest request);
 }

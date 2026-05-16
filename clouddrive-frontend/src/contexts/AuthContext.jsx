@@ -65,37 +65,13 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  // Login function
+  // Login function - step 1
   const login = async (email, password) => {
     try {
       setLoading(true);
       setError(null);
-      console.log('AuthContext: Attempting login...');
       const response = await authService.login(email, password);
-      console.log('AuthContext: Login response:', response);
-      
-      // Store token - handle both 'token' and 'accessToken' formats
-      const token = response.token || response.accessToken;
-      if (!token) {
-        throw new Error('No token in login response');
-      }
-      
-      authService.setToken(token);
-      console.log('AuthContext: Token stored successfully');
-      
-      // Set user data
-      const userData = {
-        userId: response.user?.id || response.userId,
-        name: response.user?.name || response.name,
-        email: response.user?.email || response.email,
-      };
-      console.log('AuthContext: Setting user data:', userData);
-      setUser(userData);
-      
-      // Also store user data in localStorage as fallback
-      authService.setUserData(userData);
-      
-      return response;
+      return response; // Just return response to proceed to OTP
     } catch (err) {
       const errorMessage = err.message || "Login failed";
       setError(errorMessage);
@@ -105,35 +81,55 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Register function
+  // Verify Login OTP - step 2
+  const verifyLoginOtp = async (email, otp) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authService.verifyLoginOtp(email, otp);
+      
+      const userData = {
+        userId: response.userId,
+        name: response.name,
+        email: response.email,
+      };
+      setUser(userData);
+      return response;
+    } catch (err) {
+      const errorMessage = err.message || "OTP Verification failed";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Register function - step 1
   const register = async (name, email, password) => {
     try {
       setLoading(true);
       setError(null);
       const response = await authService.register(name, email, password);
-      
-      // Store token - handle both 'token' and 'accessToken' formats
-      const token = response.token || response.accessToken;
-      if (!token) {
-        throw new Error('No token in register response');
-      }
-      
-      authService.setToken(token);
-      
-      // Set user data
-      const userData = {
-        userId: response.user?.id || response.userId,
-        name: response.user?.name || response.name,
-        email: response.user?.email || response.email,
-      };
-      setUser(userData);
-      
-      // Also store user data in localStorage as fallback
-      authService.setUserData(userData);
-      
-      return response;
+      return response; // Just return response to proceed to OTP
     } catch (err) {
       const errorMessage = err.message || "Registration failed";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify Signup OTP - step 2 (just confirms account, redirects to login)
+  const verifySignupOtp = async (email, otp) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await authService.verifySignupOtp(email, otp);
+      // Don't store token or set user - user will log in fresh
+      return response;
+    } catch (err) {
+      const errorMessage = err.message || "OTP Verification failed";
       setError(errorMessage);
       throw err;
     } finally {
@@ -159,7 +155,9 @@ export const AuthProvider = ({ children }) => {
     error,
     isAuthenticated: !!user,
     login,
+    verifyLoginOtp,
     register,
+    verifySignupOtp,
     logout,
     clearError,
   };
