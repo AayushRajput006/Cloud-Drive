@@ -8,7 +8,7 @@ export const authService = {
     if (!validationService.isValidEmail(email)) {
       throw { message: "Invalid email format" };
     }
-    
+
     if (password.length === 0) {
       throw { message: "Password is required" };
     }
@@ -17,20 +17,25 @@ export const authService = {
       const response = await api.post("/auth/login", {
         email: email.toLowerCase().trim(),
         password,
-        rememberMe: false // Add remember me functionality
+        rememberMe: false,
       });
-      
-      return response.data; // Now returns { message: "OTP sent..." }
+
+      // Backend returns: { message: "OTP sent..." }
+      return response.data;
     } catch (error) {
       // Handle specific error cases
       if (error.response?.status === 401) {
         throw { message: "Invalid email or password" };
       } else if (error.response?.status === 429) {
-        throw { message: "Too many login attempts. Please try again later." };
+        throw {
+          message: "Too many login attempts. Please try again later.",
+        };
       } else if (error.response?.status === 403) {
-        throw { message: "Account is locked. Please contact support." };
+        throw {
+          message: "Account is locked. Please contact support.",
+        };
       }
-      
+
       throw error.response?.data || { message: "Login failed" };
     }
   },
@@ -40,18 +45,38 @@ export const authService = {
     try {
       const response = await api.post("/auth/verify-login-otp", {
         email: email.toLowerCase().trim(),
-        otp
+        otp,
       });
-      
-      const { token, user } = response.data;
-      
-      // Store token securely
-      authService.setToken(token);
-      authService.setUserData(user);
-      
+
+      /*
+        Backend response:
+        {
+          accessToken,
+          tokenType,
+          userId,
+          name,
+          email
+        }
+      */
+
+      const { accessToken, userId, name, email: userEmail } =
+        response.data;
+
+      // Store token
+      authService.setToken(accessToken);
+
+      // Store user data
+      authService.setUserData({
+        userId,
+        name,
+        email: userEmail,
+      });
+
       return response.data;
     } catch (error) {
-      throw error.response?.data || { message: "OTP verification failed" };
+      throw error.response?.data || {
+        message: "OTP verification failed",
+      };
     }
   },
 
@@ -59,17 +84,23 @@ export const authService = {
   register: async (name, email, password) => {
     // Input validation
     if (!name || name.trim().length < 2) {
-      throw { message: "Name must be at least 2 characters" };
+      throw {
+        message: "Name must be at least 2 characters",
+      };
     }
-    
+
     if (!validationService.isValidEmail(email)) {
       throw { message: "Invalid email format" };
     }
-    
-    const passwordValidation = validationService.isValidPassword(password);
+
+    const passwordValidation =
+      validationService.isValidPassword(password);
+
     if (!passwordValidation.isValid) {
-      throw { 
-        message: Object.values(passwordValidation.errors).filter(Boolean).join(', ') 
+      throw {
+        message: Object.values(passwordValidation.errors)
+          .filter(Boolean)
+          .join(", "),
       };
     }
 
@@ -79,14 +110,16 @@ export const authService = {
         email: email.toLowerCase().trim(),
         password,
       });
-      
-      return response.data; // returns { message: "OTP sent..." }
+
+      return response.data;
     } catch (error) {
       if (error.response?.status === 409) {
         throw { message: "Email already registered" };
       }
-      
-      throw error.response?.data || { message: "Registration failed" };
+
+      throw error.response?.data || {
+        message: "Registration failed",
+      };
     }
   },
 
@@ -95,18 +128,38 @@ export const authService = {
     try {
       const response = await api.post("/auth/verify-signup-otp", {
         email: email.toLowerCase().trim(),
-        otp
+        otp,
       });
-      
-      const { token, user } = response.data;
-      
-      // Store token securely
-      authService.setToken(token);
-      authService.setUserData(user);
-      
+
+      /*
+        Backend response:
+        {
+          accessToken,
+          tokenType,
+          userId,
+          name,
+          email
+        }
+      */
+
+      const { accessToken, userId, name, email: userEmail } =
+        response.data;
+
+      // Store token
+      authService.setToken(accessToken);
+
+      // Store user data
+      authService.setUserData({
+        userId,
+        name,
+        email: userEmail,
+      });
+
       return response.data;
     } catch (error) {
-      throw error.response?.data || { message: "OTP verification failed" };
+      throw error.response?.data || {
+        message: "OTP verification failed",
+      };
     }
   },
 
@@ -114,23 +167,25 @@ export const authService = {
   resendOtp: async (email) => {
     try {
       const response = await api.post("/auth/resend-otp", {
-        email: email.toLowerCase().trim()
+        email: email.toLowerCase().trim(),
       });
+
       return response.data;
     } catch (error) {
-      throw error.response?.data || { message: "Failed to resend OTP" };
+      throw error.response?.data || {
+        message: "Failed to resend OTP",
+      };
     }
   },
 
   // Logout with cleanup
   logout: () => {
     try {
-      // Call logout endpoint to invalidate server session
+      // Optional backend logout
       api.post("/auth/logout");
     } catch (error) {
       console.warn("Logout API call failed:", error);
     } finally {
-      // Always clear local storage
       authService.removeToken();
       authService.removeUserData();
       authService.clearSessionData();
@@ -139,39 +194,50 @@ export const authService = {
 
   // Store token securely
   setToken: (token) => {
-    if (!token || typeof token !== 'string') {
+    if (!token || typeof token !== "string") {
       console.error("Invalid token provided");
       return;
     }
-    
+
     try {
       localStorage.setItem("clouddrive_token", token);
-      
-      // Set token expiration (if JWT contains exp claim)
-      const payload = JSON.parse(atob(token.split('.')[1]));
+
+      // Decode JWT payload
+      const payload = JSON.parse(atob(token.split(".")[1]));
+
       if (payload.exp) {
-        const expirationTime = payload.exp * 1000; // Convert to milliseconds
-        localStorage.setItem("clouddrive_token_expires", expirationTime);
+        const expirationTime = payload.exp * 1000;
+
+        localStorage.setItem(
+          "clouddrive_token_expires",
+          expirationTime.toString()
+        );
       }
     } catch (error) {
       console.error("Failed to store token:", error);
     }
   },
 
-  // Get token from localStorage with validation
+  // Get token from localStorage
   getToken: () => {
     try {
       const token = localStorage.getItem("clouddrive_token");
-      
+
       if (!token) return null;
-      
-      // Check token expiration
-      const expirationTime = localStorage.getItem("clouddrive_token_expires");
-      if (expirationTime && Date.now() > parseInt(expirationTime)) {
+
+      // Check expiration
+      const expirationTime = localStorage.getItem(
+        "clouddrive_token_expires"
+      );
+
+      if (
+        expirationTime &&
+        Date.now() > parseInt(expirationTime)
+      ) {
         authService.removeToken();
         return null;
       }
-      
+
       return token;
     } catch (error) {
       console.error("Failed to get token:", error);
@@ -179,65 +245,59 @@ export const authService = {
     }
   },
 
-  // Remove token and related data
+  // Remove token
   removeToken: () => {
     localStorage.removeItem("clouddrive_token");
     localStorage.removeItem("clouddrive_token_expires");
   },
 
-  // Check if user is authenticated with token validation
+  // Check if authenticated
   isAuthenticated: () => {
     const token = authService.getToken();
     return token !== null;
   },
 
-  // Get user info from token with enhanced parsing
+  // Get user info from token
   getUserFromToken: () => {
     const token = authService.getToken();
+
     if (!token) return null;
 
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      
-      // Validate required fields
-      if (!payload.userId && !payload.sub) {
-        console.error("Token missing user ID");
-        return null;
-      }
-      
+      const payload = JSON.parse(atob(token.split(".")[1]));
+
       return {
-        userId: payload.userId || payload.sub,
-        firstName: payload.firstName || payload.given_name,
-        lastName: payload.lastName || payload.family_name,
-        name: payload.name || `${payload.firstName || ''} ${payload.lastName || ''}`.trim(),
-        email: payload.email || payload.sub,
-        role: payload.role || 'user',
-        permissions: payload.permissions || [],
-        iat: payload.iat, // Issued at
-        exp: payload.exp  // Expires at
+        email: payload.sub || payload.email,
+        iat: payload.iat,
+        exp: payload.exp,
       };
     } catch (error) {
       console.error("Failed to parse token:", error);
-      authService.removeToken(); // Remove invalid token
+      authService.removeToken();
       return null;
     }
   },
 
-  // Store user data securely
+  // Store user data
   setUserData: (userData) => {
     if (!userData) return;
-    
+
     try {
-      localStorage.setItem("clouddrive_user", JSON.stringify(userData));
+      localStorage.setItem(
+        "clouddrive_user",
+        JSON.stringify(userData)
+      );
     } catch (error) {
       console.error("Failed to store user data:", error);
     }
   },
 
-  // Get user data from localStorage
+  // Get user data
   getUserData: () => {
     try {
-      const userData = localStorage.getItem("clouddrive_user");
+      const userData =
+        localStorage.getItem("clouddrive_user");
+
       return userData ? JSON.parse(userData) : null;
     } catch (error) {
       console.error("Failed to get user data:", error);
@@ -252,68 +312,102 @@ export const authService = {
 
   // Clear all session data
   clearSessionData: () => {
-    // Clear all app-related localStorage items
     const keysToRemove = [];
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('clouddrive_')) {
+
+      if (key && key.startsWith("clouddrive_")) {
         keysToRemove.push(key);
       }
     }
-    
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+    keysToRemove.forEach((key) =>
+      localStorage.removeItem(key)
+    );
   },
 
-  // Check if token is expired
+  // Check token expiration
   isTokenExpired: () => {
-    const expirationTime = localStorage.getItem("clouddrive_token_expires");
-    return expirationTime ? Date.now() > parseInt(expirationTime) : false;
+    const expirationTime = localStorage.getItem(
+      "clouddrive_token_expires"
+    );
+
+    return expirationTime
+      ? Date.now() > parseInt(expirationTime)
+      : false;
   },
 
   // Refresh token
   refreshToken: async () => {
     try {
       const response = await api.post("/auth/refresh");
-      const { token } = response.data;
-      authService.setToken(token);
-      return token;
+
+      // Match backend response properly
+      const { accessToken } = response.data;
+
+      // Store new token
+      authService.setToken(accessToken);
+
+      return accessToken;
     } catch (error) {
       console.error("Token refresh failed:", error);
+
       authService.logout();
+
       throw error;
     }
   },
 
-  // Change password with validation
-  changePassword: async (currentPassword, newPassword, confirmPassword) => {
+  // Change password
+  changePassword: async (
+    currentPassword,
+    newPassword,
+    confirmPassword
+  ) => {
     if (!currentPassword || currentPassword.length === 0) {
-      throw { message: "Current password is required" };
-    }
-    
-    const passwordValidation = validationService.isValidPassword(newPassword);
-    if (!passwordValidation.isValid) {
-      throw { 
-        message: Object.values(passwordValidation.errors).filter(Boolean).join(', ') 
+      throw {
+        message: "Current password is required",
       };
     }
-    
+
+    const passwordValidation =
+      validationService.isValidPassword(newPassword);
+
+    if (!passwordValidation.isValid) {
+      throw {
+        message: Object.values(passwordValidation.errors)
+          .filter(Boolean)
+          .join(", "),
+      };
+    }
+
     if (newPassword !== confirmPassword) {
-      throw { message: "New passwords do not match" };
+      throw {
+        message: "New passwords do not match",
+      };
     }
 
     try {
-      const response = await api.post("/auth/change-password", {
-        currentPassword,
-        newPassword
-      });
-      
+      const response = await api.post(
+        "/auth/change-password",
+        {
+          currentPassword,
+          newPassword,
+        }
+      );
+
       return response.data;
     } catch (error) {
       if (error.response?.status === 400) {
-        throw { message: "Current password is incorrect" };
+        throw {
+          message: "Current password is incorrect",
+        };
       }
-      
-      throw error.response?.data || { message: "Password change failed" };
+
+      throw error.response?.data || {
+        message: "Password change failed",
+      };
     }
   },
 
@@ -324,50 +418,74 @@ export const authService = {
     }
 
     try {
-      const response = await api.post("/auth/forgot-password", {
-        email: email.toLowerCase().trim()
-      });
-      
+      const response = await api.post(
+        "/auth/forgot-password",
+        {
+          email: email.toLowerCase().trim(),
+        }
+      );
+
       return response.data;
     } catch (error) {
       if (error.response?.status === 404) {
         throw { message: "Email not found" };
       }
-      
-      throw error.response?.data || { message: "Password reset request failed" };
+
+      throw error.response?.data || {
+        message: "Password reset request failed",
+      };
     }
   },
 
-  // Reset password with token
-  resetPassword: async (token, newPassword, confirmPassword) => {
+  // Reset password
+  resetPassword: async (
+    token,
+    newPassword,
+    confirmPassword
+  ) => {
     if (!token || token.length === 0) {
-      throw { message: "Reset token is required" };
-    }
-    
-    const passwordValidation = validationService.isValidPassword(newPassword);
-    if (!passwordValidation.isValid) {
-      throw { 
-        message: Object.values(passwordValidation.errors).filter(Boolean).join(', ') 
+      throw {
+        message: "Reset token is required",
       };
     }
-    
+
+    const passwordValidation =
+      validationService.isValidPassword(newPassword);
+
+    if (!passwordValidation.isValid) {
+      throw {
+        message: Object.values(passwordValidation.errors)
+          .filter(Boolean)
+          .join(", "),
+      };
+    }
+
     if (newPassword !== confirmPassword) {
-      throw { message: "Passwords do not match" };
+      throw {
+        message: "Passwords do not match",
+      };
     }
 
     try {
-      const response = await api.post("/auth/reset-password", {
-        token,
-        newPassword
-      });
-      
+      const response = await api.post(
+        "/auth/reset-password",
+        {
+          token,
+          newPassword,
+        }
+      );
+
       return response.data;
     } catch (error) {
       if (error.response?.status === 400) {
-        throw { message: "Invalid or expired reset token" };
+        throw {
+          message: "Invalid or expired reset token",
+        };
       }
-      
-      throw error.response?.data || { message: "Password reset failed" };
+
+      throw error.response?.data || {
+        message: "Password reset failed",
+      };
     }
-  }
+  },
 };
