@@ -1,5 +1,17 @@
 package com.clouddrive.service.impl;
 
+import java.io.IOException;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.clouddrive.dto.FileUploadResponse;
 import com.clouddrive.dto.MoveFileRequest;
 import com.clouddrive.dto.ShareFileResponse;
@@ -14,11 +26,7 @@ import com.clouddrive.repository.StarredItemRepository;
 import com.clouddrive.repository.TrashItemRepository;
 import com.clouddrive.repository.UserRepository;
 import com.clouddrive.service.FileService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
+
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -27,12 +35,6 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
-
-import java.io.IOException;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
 
 @Service
 public class FileServiceImpl implements FileService {
@@ -76,12 +78,13 @@ public class FileServiceImpl implements FileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Get parent folder if specified
+        // Get parent folder if specified (must belong to authenticated user)
         Folder parentFolder = null;
         if (folderId != null) {
-            parentFolder = folderRepository.findById(folderId)
+            parentFolder = folderRepository.findByIdAndOwner(folderId, user)
                     .orElseThrow(() -> new RuntimeException("Parent folder not found"));
         }
+
 
         // Check storage quota
         long fileSize = file.getSize();
@@ -209,9 +212,11 @@ public class FileServiceImpl implements FileService {
         
         Folder newParentFolder = null;
         if (request.folderId() != null) {
-            newParentFolder = folderRepository.findById(request.folderId())
+            // Folder must belong to the authenticated user
+            newParentFolder = folderRepository.findByIdAndOwner(request.folderId(), user)
                     .orElseThrow(() -> new RuntimeException("Target folder not found"));
         }
+
         
         file.setParentFolder(newParentFolder);
         FileItem savedFile = fileRepository.save(file);

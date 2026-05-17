@@ -1,9 +1,11 @@
 // Activity Tracking Service - Monitor and track all user activities
 class ActivityService {
   constructor() {
-    this.ACTIVITY_KEY = 'clouddrive_activities';
-    this.RECENT_FILES_KEY = 'clouddrive_recent_files';
-    this.SEARCH_HISTORY_KEY = 'clouddrive_search_history';
+    // NOTE: These keys are now scoped to the authenticated user to prevent cross-user leakage.
+    this.ACTIVITY_KEY_PREFIX = 'clouddrive_activities_';
+    this.RECENT_FILES_KEY_PREFIX = 'clouddrive_recent_files_';
+    this.SEARCH_HISTORY_KEY_PREFIX = 'clouddrive_search_history_';
+
     this.activities = this.loadActivities();
     this.recentFiles = this.loadRecentFiles();
     this.searchHistory = this.loadSearchHistory();
@@ -11,9 +13,24 @@ class ActivityService {
   }
 
   // Load activities from localStorage
+  getCurrentUserKey() {
+    // Derive a stable per-user key from stored auth.
+    // Prevents cross-user leakage from localStorage.
+    const user = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('clouddrive_user'));
+      } catch (e) {
+        return null;
+      }
+    })();
+
+    // Prefer userId, fallback to email, fallback to sessionStorage sessionId.
+    return user?.userId || user?.id || user?.email || this.getSessionId();
+  }
+
   loadActivities() {
     try {
-      const stored = localStorage.getItem(this.ACTIVITY_KEY);
+      const stored = localStorage.getItem(this.ACTIVITY_KEY_PREFIX + this.getCurrentUserKey());
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error loading activities:', error);
@@ -21,10 +38,15 @@ class ActivityService {
     }
   }
 
+
   // Save activities to localStorage
   saveActivities() {
     try {
-      localStorage.setItem(this.ACTIVITY_KEY, JSON.stringify(this.activities));
+      // Preserve backwards compatibility by writing old key too (optional)
+      // but primary key is per-user scoped.
+      const perUserKey = this.ACTIVITY_KEY_PREFIX + this.getCurrentUserKey();
+      localStorage.setItem(perUserKey, JSON.stringify(this.activities));
+
       return true;
     } catch (error) {
       console.error('Error saving activities:', error);
