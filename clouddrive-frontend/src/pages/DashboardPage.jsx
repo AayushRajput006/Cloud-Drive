@@ -574,7 +574,7 @@ function DashboardPage() {
               {/* Recent Activity */}
               <button
                 onClick={handleShowRecentActivity}
-                className="bg-tertiary text-white px-md py-sm rounded-lg flex items-center gap-2"
+                className="bg-secondary text-white px-md py-sm rounded-lg flex items-center gap-2"
               >
                 <span className="material-symbols-outlined">recent_actors</span>
                 Recent Activity
@@ -583,7 +583,7 @@ function DashboardPage() {
               {/* Tag Management */}
               <button
                 onClick={handleShowTagManagement}
-                className="bg-warning text-white px-md py-sm rounded-lg flex items-center gap-2"
+                className="bg-secondary text-white px-md py-sm rounded-lg flex items-center gap-2"
               >
                 <span className="material-symbols-outlined">sell</span>
                 Tags

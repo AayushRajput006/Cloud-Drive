@@ -206,7 +206,42 @@ const fileService = {
     }
 
     return response.json();
+  },
+
+  // Recently uploaded files (DB-based)
+  recentFiles: async (limit = 20) => {
+    try {
+      const token = authService.getToken();
+      if (!token) return [];
+
+      const response = await fetch(`${API_BASE_URL}/files/recent?limit=${encodeURIComponent(limit)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch recent files');
+      }
+
+      const data = await response.json();
+      return (data || []).map(file => ({
+        id: String(file.id),
+        name: file.fileName,
+        type: file.fileType || 'unknown',
+        size: file.size,
+        createdAt: file.uploadDate,
+        modifiedAt: file.uploadDate,
+        lastAccessed: file.uploadDate,
+        // keep fileUrl if backend starts sending it
+        url: file.fileUrl
+      }));
+    } catch (error) {
+      console.warn('Failed to fetch recent files:', error);
+      return [];
+    }
   }
 };
 
 export default fileService;
+

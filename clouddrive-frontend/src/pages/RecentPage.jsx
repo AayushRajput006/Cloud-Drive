@@ -37,34 +37,35 @@ function RecentPage() {
   // =========================
   // Load Recent Files
   // =========================
-  const loadRecentFiles = useCallback(() => {
+  const loadRecentFiles = useCallback(async () => {
     try {
       setLoading(true);
-      const recent = activityService.getRecentFiles();
-      console.log('Recent files loaded:', recent);
-      
-      // Transform recent files to ensure they have the correct structure for FileGrid
+
+      // Fetch recently uploaded files from backend (DB-based)
+      const recent = await fileService.recentFiles(50);
+
+      console.log('Recent files loaded (backend):', recent);
+
       const transformedFiles = (recent || []).map((file, index) => ({
         id: file.id || file.fileId || `recent_${index}`,
         name: file.name || file.fileName || 'Unknown File',
         type: file.type || file.fileType || 'unknown',
         size: file.size || 0,
-        createdAt: file.createdAt || new Date().toISOString(),
-        modifiedAt: file.modifiedAt || file.lastAccessed || new Date().toISOString(),
-        lastAccessed: file.lastAccessed || file.createdAt || new Date().toISOString()
+        createdAt: file.createdAt || file.uploadDate || new Date().toISOString(),
+        modifiedAt: file.modifiedAt || file.lastAccessed || file.createdAt || new Date().toISOString(),
+        lastAccessed: file.lastAccessed || file.createdAt || file.uploadDate || new Date().toISOString()
       }));
-      
+
       setRecentFiles(transformedFiles);
       console.log('Transformed files:', transformedFiles);
     } catch (error) {
       console.error('Error loading recent files:', error);
-      // Set empty array to prevent crashes
       setRecentFiles([]);
-      // Don't show notification on initial load
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+  }, []);
+
 
   useEffect(() => {
     loadRecentFiles();

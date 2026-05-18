@@ -1,36 +1,65 @@
 // Activity Tracking Service - Monitor and track all user activities
 class ActivityService {
   constructor() {
-    // NOTE: These keys are now scoped to the authenticated user to prevent cross-user leakage.
+    // NOTE: These keys are scoped to the authenticated user to prevent cross-user leakage.
     this.ACTIVITY_KEY_PREFIX = 'clouddrive_activities_';
     this.RECENT_FILES_KEY_PREFIX = 'clouddrive_recent_files_';
     this.SEARCH_HISTORY_KEY_PREFIX = 'clouddrive_search_history_';
 
-    this.activities = this.loadActivities();
-    this.recentFiles = this.loadRecentFiles();
-    this.searchHistory = this.loadSearchHistory();
+    this.activities = [];
+    this.recentFiles = [];
+    this.searchHistory = [];
     this.listeners = new Set();
+
+    this.lastUserContextKey = null;
+    this.initUserContext();
+
+    // Cross-tab auth changes
+    window.addEventListener('storage', (e) => {
+      if (e?.key === 'clouddrive_user') {
+        this.handleAuthChange();
+      }
+    });
+
+    // Same-tab auth changes (belt + suspenders)
+    // If auth updates without writing clouddrive_user to localStorage immediately,
+    // we still refresh periodically when the user context key changes.
+    this.authPollTimer = window.setInterval(() => {
+      this.handleAuthChange();
+    }, 2000);
+  }
+
+  // Log user activity
+
+  getUserIdForIsolation() {
+    try {
+      const user = JSON.parse(localStorage.getItem('clouddrive_user'));
+      return user?.userId || user?.id || user?.email || null;
+    } catch {
+      return null;
+    }
+  }
+
+  getCurrentUserKey() {
+    return this.getUserIdForIsolation() || this.getSessionId();
+  }
+
+  getActivitiesKey() {
+    return this.ACTIVITY_KEY_PREFIX + this.getCurrentUserKey();
+  }
+
+  getRecentFilesKey() {
+    return this.RECENT_FILES_KEY_PREFIX + this.getCurrentUserKey();
+  }
+
+  getSearchHistoryKey() {
+    return this.SEARCH_HISTORY_KEY_PREFIX + this.getCurrentUserKey();
   }
 
   // Load activities from localStorage
-  getCurrentUserKey() {
-    // Derive a stable per-user key from stored auth.
-    // Prevents cross-user leakage from localStorage.
-    const user = (() => {
-      try {
-        return JSON.parse(localStorage.getItem('clouddrive_user'));
-      } catch (e) {
-        return null;
-      }
-    })();
-
-    // Prefer userId, fallback to email, fallback to sessionStorage sessionId.
-    return user?.userId || user?.id || user?.email || this.getSessionId();
-  }
-
   loadActivities() {
     try {
-      const stored = localStorage.getItem(this.ACTIVITY_KEY_PREFIX + this.getCurrentUserKey());
+      const stored = localStorage.getItem(this.getActivitiesKey());
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error loading activities:', error);
@@ -38,15 +67,10 @@ class ActivityService {
     }
   }
 
-
   // Save activities to localStorage
   saveActivities() {
     try {
-      // Preserve backwards compatibility by writing old key too (optional)
-      // but primary key is per-user scoped.
-      const perUserKey = this.ACTIVITY_KEY_PREFIX + this.getCurrentUserKey();
-      localStorage.setItem(perUserKey, JSON.stringify(this.activities));
-
+      localStorage.setItem(this.getActivitiesKey(), JSON.stringify(this.activities));
       return true;
     } catch (error) {
       console.error('Error saving activities:', error);
@@ -57,7 +81,7 @@ class ActivityService {
   // Load recent files
   loadRecentFiles() {
     try {
-      const stored = localStorage.getItem(this.RECENT_FILES_KEY);
+      const stored = localStorage.getItem(this.getRecentFilesKey());
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error loading recent files:', error);
@@ -68,7 +92,7 @@ class ActivityService {
   // Save recent files
   saveRecentFiles() {
     try {
-      localStorage.setItem(this.RECENT_FILES_KEY, JSON.stringify(this.recentFiles));
+      localStorage.setItem(this.getRecentFilesKey(), JSON.stringify(this.recentFiles));
       return true;
     } catch (error) {
       console.error('Error saving recent files:', error);
@@ -79,7 +103,7 @@ class ActivityService {
   // Load search history
   loadSearchHistory() {
     try {
-      const stored = localStorage.getItem(this.SEARCH_HISTORY_KEY);
+      const stored = localStorage.getItem(this.getSearchHistoryKey());
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error loading search history:', error);
@@ -90,7 +114,7 @@ class ActivityService {
   // Save search history
   saveSearchHistory() {
     try {
-      localStorage.setItem(this.SEARCH_HISTORY_KEY, JSON.stringify(this.searchHistory));
+      localStorage.setItem(this.getSearchHistoryKey(), JSON.stringify(this.searchHistory));
       return true;
     } catch (error) {
       console.error('Error saving search history:', error);
@@ -98,20 +122,56 @@ class ActivityService {
     }
   }
 
+  // Ensure activity/recent/search state matches the currently authenticated user
+  // (prevents same-tab leakage when switching users).
+  initUserContext() {
+    this.reloadFromStorageIfUserChanged(true);
+  }
+
+  getUserContextKey() {
+    // Use the same source as getCurrentUserKey so the switch is consistent.
+    return this.getUserIdForIsolation() || `session:${this.getSessionId()}`;
+  }
+
+  reloadFromStorageIfUserChanged(force = false) {
+    const currentKey = this.getUserContextKey();
+    if (!force && currentKey === this.lastUserContextKey) return;
+
+    this.lastUserContextKey = currentKey;
+    this.activities = this.loadActivities();
+    this.recentFiles = this.loadRecentFiles();
+    this.searchHistory = this.loadSearchHistory();
+
+    this.notifyListeners('user_context_changed', {
+      userContextKey: currentKey,
+      recentFiles: this.recentFiles,
+      searchHistory: this.searchHistory
+    });
+  }
+
+  handleAuthChange() {
+    this.reloadFromStorageIfUserChanged(false);
+  }
+
   // Log user activity
   logActivity(type, details, metadata = {}) {
+    // Always reload before logging to avoid writing under the wrong user's key.
+    this.reloadFromStorageIfUserChanged(false);
+
+    const userId = this.getUserIdForIsolation() || 'unknown';
+
     const activity = {
       id: Date.now() + Math.random(),
       type,
       details,
       metadata,
       timestamp: new Date().toISOString(),
-      userId: 'current-user', // TODO: Get from auth context
+      userId,
       sessionId: this.getSessionId()
     };
 
     this.activities.unshift(activity);
-    
+
     // Keep only last 500 activities to prevent storage bloat
     if (this.activities.length > 500) {
       this.activities = this.activities.slice(0, 500);
@@ -119,7 +179,7 @@ class ActivityService {
 
     this.saveActivities();
     this.notifyListeners('activity', activity);
-    
+
     return activity;
   }
 
@@ -445,23 +505,28 @@ class ActivityService {
 
   // Event listener management
   addListener(event, callback) {
-    this.listeners.add({ event, callback });
+    if (!event || typeof callback !== 'function') return;
+
+    // Map event -> Set(callback) for correct add/remove semantics
+    if (!this.listenersMap) {
+      this.listenersMap = new Map();
+    }
+
+    if (!this.listenersMap.has(event)) {
+      this.listenersMap.set(event, new Set());
+    }
+
+    this.listenersMap.get(event).add(callback);
   }
 
   removeListener(event, callback) {
-    this.listeners.forEach(listener => {
-      if (listener.event === event && listener.callback === callback) {
-        this.listeners.delete(listener);
-      }
-    });
+    if (!this.listenersMap || !this.listenersMap.has(event)) return;
+    this.listenersMap.get(event).delete(callback);
   }
 
   notifyListeners(event, data) {
-    this.listeners.forEach(listener => {
-      if (listener.event === event) {
-        listener.callback(data);
-      }
-    });
+    if (!this.listenersMap || !this.listenersMap.has(event)) return;
+    this.listenersMap.get(event).forEach(cb => cb(data));
   }
 
   // Get session ID

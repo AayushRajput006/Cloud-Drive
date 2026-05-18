@@ -1,11 +1,7 @@
 package com.clouddrive.controller;
 
-import com.clouddrive.dto.FileUploadResponse;
-import com.clouddrive.dto.MoveFileRequest;
-import com.clouddrive.dto.ShareFileResponse;
-import com.clouddrive.security.CustomUserDetails;
-import com.clouddrive.service.FileService;
 import java.util.List;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.clouddrive.dto.FileUploadResponse;
+import com.clouddrive.dto.MoveFileRequest;
+import com.clouddrive.dto.ShareFileResponse;
+import com.clouddrive.security.CustomUserDetails;
+import com.clouddrive.service.FileService;
 
 @RestController
 @RequestMapping("/files")
@@ -110,4 +112,14 @@ public class FileController {
     ) {
         return ResponseEntity.ok(fileService.generateShareLink(currentUser.getUserId(), id));
     }
+
+    // Recently uploaded files (DB-based)
+    @GetMapping("/recent")
+    public ResponseEntity<List<FileUploadResponse>> recentFiles(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit
+    ) {
+        return ResponseEntity.ok(fileService.getRecentFiles(currentUser.getUserId(), limit));
+    }
 }
+

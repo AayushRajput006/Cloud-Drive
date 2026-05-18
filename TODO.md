@@ -35,13 +35,14 @@
 - [ ] Add consistent 403 handling for unauthorized access.
 
 ## Phase 2: Frontend isolation fixes (waiting for approval)
-- [ ] Prevent per-user leakage in activityService:
-  - [ ] scope localStorage keys by user (or clear on auth change)
-  - [ ] remove hardcoded userId: 'current-user'
+- [x] Prevent per-user leakage in activityService:
+  - [x] scope localStorage keys by user (or clear on auth change)
+  - [x] remove hardcoded userId: 'current-user'
 - [ ] Remove mock data pages or gate behind “no backend mode”
   - [ ] TrashPage.jsx
   - [ ] SearchPage.jsx
 - [ ] Remove hardcoded API base URL in fileService.js; use shared api.js.
+
 
 ## Phase 3: Verification
 - [ ] Backend smoke tests (manual/CLI):

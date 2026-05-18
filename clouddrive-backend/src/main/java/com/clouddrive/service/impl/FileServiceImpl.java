@@ -325,10 +325,29 @@ public class FileServiceImpl implements FileService {
                 .toList();
     }
 
+    @Override
     @Transactional
-    public List<FileItem> getRecentFiles(User user) {
-        return fileRepository.findRecentFilesByOwner(user);
+    public List<FileUploadResponse> getRecentFiles(Long userId, Integer limit) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        int safeLimit = (limit == null || limit <= 0) ? 20 : limit;
+
+        // DB already orders by createdAt desc; limit in-memory since repository method has no limit.
+        return fileRepository.findRecentFilesByOwner(user).stream()
+                .limit(safeLimit)
+                .map(file -> new FileUploadResponse(
+                        file.getId(),
+                        file.getName(),
+                        null, // fileUrl not available in this backend version
+                        file.getType(),
+                        file.getSize(),
+                        file.getCreatedAt()
+                ))
+                .toList();
     }
+
+
 
     @Transactional
     public List<FileItem> getFilesByType(User user, String type) {

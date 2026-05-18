@@ -1,10 +1,12 @@
 package com.clouddrive.service;
 
+import java.util.List;
+
+import org.springframework.web.multipart.MultipartFile;
+
 import com.clouddrive.dto.FileUploadResponse;
 import com.clouddrive.dto.MoveFileRequest;
 import com.clouddrive.dto.ShareFileResponse;
-import java.util.List;
-import org.springframework.web.multipart.MultipartFile;
 
 public interface FileService {
     FileUploadResponse uploadFile(Long userId, MultipartFile file, Long folderId);
@@ -22,4 +24,8 @@ public interface FileService {
     FileUploadResponse assignFileToFolder(Long userId, Long fileId, MoveFileRequest request);
 
     ShareFileResponse generateShareLink(Long userId, Long fileId);
+
+    // Recently uploaded files (DB-based)
+    java.util.List<com.clouddrive.dto.FileUploadResponse> getRecentFiles(Long userId, Integer limit);
 }
+
