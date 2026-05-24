@@ -1,14 +1,27 @@
 // Favorites Service - Manage file and folder favorites
 class FavoritesService {
   constructor() {
-    this.FAVORITES_KEY = 'clouddrive_favorites';
+    this.FAVORITES_KEY_PREFIX = 'clouddrive_favorites';
+    this.userId = null;
+    this.favorites = [];
+  }
+
+  // Must be called after auth so favorites are scoped per user
+  setUser(userId) {
+    this.userId = userId ? String(userId) : null;
     this.favorites = this.loadFavorites();
   }
+
+  getFavoritesKey() {
+    // If user is not set, fall back to a clearly shared namespace (won't be used when logged in)
+    return this.userId ? `${this.FAVORITES_KEY_PREFIX}_${this.userId}` : `${this.FAVORITES_KEY_PREFIX}_anonymous`;
+  }
+
 
   // Load favorites from localStorage
   loadFavorites() {
     try {
-      const stored = localStorage.getItem(this.FAVORITES_KEY);
+      const stored = localStorage.getItem(this.getFavoritesKey());
       return stored ? JSON.parse(stored) : [];
     } catch (error) {
       console.error('Error loading favorites:', error);
@@ -16,16 +29,18 @@ class FavoritesService {
     }
   }
 
+
   // Save favorites to localStorage
   saveFavorites() {
     try {
-      localStorage.setItem(this.FAVORITES_KEY, JSON.stringify(this.favorites));
+      localStorage.setItem(this.getFavoritesKey(), JSON.stringify(this.favorites));
       return true;
     } catch (error) {
       console.error('Error saving favorites:', error);
       return false;
     }
   }
+
 
   // Add file/folder to favorites
   addFavorite(item) {

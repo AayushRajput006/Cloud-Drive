@@ -208,6 +208,69 @@ const fileService = {
     return response.json();
   },
 
+  // Starred files
+  listStarredFiles: async () => {
+    const token = authService.getToken();
+    if (!token) return [];
+
+    const response = await fetch(`${API_BASE_URL}/files/starred`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch starred files');
+    }
+
+    const data = await response.json();
+    return (data || []).map(file => ({
+      id: String(file.id),
+      name: file.fileName || file.name,
+      type: file.fileType || file.type,
+      size: file.size,
+      createdAt: file.uploadDate || file.createdAt,
+      path: file.filePath || file.path,
+      fileType: file.fileType || file.type
+    }));
+  },
+
+  starFile: async (fileId) => {
+    const token = authService.getToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/files/${fileId}/star`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Star failed');
+    }
+  },
+
+  unstarFile: async (fileId) => {
+    const token = authService.getToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/files/${fileId}/star`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Unstar failed');
+    }
+  },
+
   // Recently uploaded files (DB-based)
   recentFiles: async (limit = 20) => {
     try {
@@ -240,8 +303,90 @@ const fileService = {
       console.warn('Failed to fetch recent files:', error);
       return [];
     }
+  },
+
+  // Trash
+  listTrashItems: async () => {
+    console.log('Fetching trash items...');
+    const token = authService.getToken();
+    if (!token) return [];
+
+    const response = await fetch(`${API_BASE_URL}/files/trash`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch trash items');
+    }
+
+    const data = await response.json();
+    return (data || []).map(item => ({
+      trashItemId: String(item.trashItemId ?? item.id),
+      id: String(item.id ?? item.trashItemId), // keep for compatibility
+      name: item.originalName || item.name,
+      type: item.type || (item.file?.type) || 'unknown',
+      size: item.size || item.file?.size || 0,
+      originalPath: item.originalPath,
+      deletedAt: item.deletedAt,
+      // backend will tell us if it can be restored (not expired)
+      canRestore: item.canRestore ?? true,
+      fileId: item.fileId ?? item.file?.id ?? null
+    }));
+  },
+
+  restoreTrashItem: async (trashItemId) => {
+    const token = authService.getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${API_BASE_URL}/files/trash/${trashItemId}/restore`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to restore from trash');
+    }
+  },
+
+  permanentlyDeleteTrashItem: async (trashItemId) => {
+    const token = authService.getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${API_BASE_URL}/files/trash/${trashItemId}/permanent-delete`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to permanently delete from trash');
+    }
+  },
+
+  emptyTrash: async () => {
+    const token = authService.getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${API_BASE_URL}/files/trash/empty`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to empty trash');
+    }
   }
 };
 
+export { fileService };
 export default fileService;
+
+
 

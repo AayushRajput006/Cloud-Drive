@@ -5,58 +5,29 @@ import DriveSidebar from '../components/DriveSidebar';
 import DriveTopbar from '../components/DriveTopbar';
 import { authService } from '../services/authService';
 
-// Mock starred data - replace with actual API calls
-const mockStarredFiles = [
-  {
-    id: 1,
-    name: "Project Proposal.docx",
-    type: "document",
-    size: 245760,
-    starred: true,
-    createdAt: "2026-05-10T10:30:00Z",
-    fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  },
-  {
-    id: 2,
-    name: "Design Mockup.png",
-    type: "image",
-    size: 1024000,
-    starred: true,
-    createdAt: "2026-05-09T15:20:00Z",
-    fileType: "image/png"
-  },
-  {
-    id: 3,
-    name: "Budget Spreadsheet.xlsx",
-    type: "document",
-    size: 512000,
-    starred: true,
-    createdAt: "2026-05-08T09:15:00Z",
-    fileType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  }
-];
+import fileService from '../services/fileService';
 
 function StarredPage() {
+
   const [starredFiles, setStarredFiles] = useState([]);
   const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('name');
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load starred files from API
-    const token = authService.getToken();
-    if (token) {
-      // TODO: Replace with actual API call
-      // fetch('/api/files/starred', {
-      //   headers: { 'Authorization': `Bearer ${token}` }
-      // })
-      // .then(response => response.json())
-      // .then(data => setStarredFiles(data));
-      
-      // Use mock data for now
-      setStarredFiles(mockStarredFiles);
-    }
+    const loadStarred = async () => {
+      try {
+        const data = await fileService.listStarredFiles();
+        setStarredFiles(data);
+      } catch (e) {
+        console.error('Failed to load starred files:', e);
+        setStarredFiles([]);
+      }
+    };
+
+    loadStarred();
   }, []);
+
 
   const handleSortChange = useCallback((newSortBy) => {
     setSortBy(newSortBy);
@@ -66,25 +37,31 @@ function StarredPage() {
     setViewMode(newViewMode);
   }, []);
 
-  const handleFileAction = useCallback((action, file) => {
-    switch (action) {
-      case 'unstar':
-        console.log('Unstarring file:', file);
-        // TODO: Call API to unstar file
-        break;
-      case 'download':
-        console.log('Downloading file:', file);
-        break;
-      case 'share':
-        console.log('Sharing file:', file);
-        break;
-      case 'delete':
-        console.log('Deleting file:', file);
-        break;
-      default:
-        console.log('Unknown action:', action);
+  const handleFileAction = useCallback(async (action, file) => {
+    try {
+      switch (action) {
+        case 'unstar':
+          await fileService.unstarFile(file.id);
+          setStarredFiles((prev) => prev.filter((f) => f.id !== file.id));
+          break;
+        case 'download':
+          await fileService.downloadFile(file.id);
+          break;
+        case 'share':
+          await fileService.shareFile(file.id);
+          break;
+        case 'delete':
+          await fileService.deleteFile(file.id);
+          setStarredFiles((prev) => prev.filter((f) => f.id !== file.id));
+          break;
+        default:
+          console.log('Unknown action:', action);
+      }
+    } catch (e) {
+      console.error(`Failed to ${action} file:`, e);
     }
   }, []);
+
 
   const sortedFiles = useCallback(() => {
     const sorted = [...starredFiles];

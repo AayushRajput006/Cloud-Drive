@@ -5,76 +5,34 @@ import DriveSidebar from '../components/DriveSidebar';
 import DriveTopbar from '../components/DriveTopbar';
 import { authService } from '../services/authService';
 
-// Mock trash data - replace with actual API calls
-const mockTrashFiles = [
-  {
-    id: 1,
-    name: "Old Project Report.pdf",
-    type: "document",
-    size: 1024000,
-    originalPath: "/Documents/Work/",
-    deletedAt: "2026-05-01T10:00:00Z",
-    deletedBy: "John Doe",
-    fileType: "application/pdf",
-    canRestore: true
-  },
-  {
-    id: 2,
-    name: "Draft Presentation.pptx",
-    type: "document",
-    size: 5242880,
-    originalPath: "/Documents/Projects/",
-    deletedAt: "2026-04-28T14:30:00Z",
-    deletedBy: "John Doe",
-    fileType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    canRestore: true
-  },
-  {
-    id: 3,
-    name: "Temp Files.zip",
-    type: "archive",
-    size: 2048576,
-    originalPath: "/Downloads/",
-    deletedAt: "2026-04-15T09:15:00Z",
-    deletedBy: "John Doe",
-    fileType: "application/zip",
-    canRestore: false
-  },
-  {
-    id: 4,
-    name: "Meeting Recording.mp4",
-    type: "video",
-    size: 10240000,
-    originalPath: "/Videos/",
-    deletedAt: "2026-04-10T16:45:00Z",
-    deletedBy: "John Doe",
-    fileType: "video/mp4",
-    canRestore: true
-  }
-];
+import { fileService } from '../services/fileService';
 
 function TrashPage() {
+
   const [trashFiles, setTrashFiles] = useState([]);
   const [viewMode, setViewMode] = useState('list');
   const [sortBy, setSortBy] = useState('deletedAt');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Load trash files from API
-    const token = authService.getToken();
-    if (token) {
-      // TODO: Replace with actual API call
-      // fetch('/api/files/trash', {
-      //   headers: { 'Authorization': `Bearer ${token}` }
-      // })
-      // .then(response => response.json())
-      // .then(data => setTrashFiles(data));
-      
-      // Use mock data for now
-      setTrashFiles(mockTrashFiles);
+  const loadTrash = useCallback(async () => {
+    try {
+      const token = authService.getToken();
+      if (!token) return;
+
+      const data = await fileService.listTrashItems();
+      setTrashFiles(data);
+      setSelectedFiles([]);
+    } catch (e) {
+      console.warn('Failed to load trash items:', e);
+      setTrashFiles([]);
     }
   }, []);
+
+  useEffect(() => {
+    loadTrash();
+  }, [loadTrash]);
+
 
   const handleSortChange = useCallback((newSortBy) => {
     setSortBy(newSortBy);
@@ -89,75 +47,90 @@ function TrashPage() {
     console.log('Selected file:', file);
   }, []);
 
-  const handleFileAction = useCallback((action, file) => {
-    switch (action) {
-      case 'restore':
-        if (file.canRestore) {
-          console.log('Restoring file:', file);
-          // TODO: Call API to restore file
-        } else {
-          alert('This file cannot be restored because it has been permanently deleted.');
+  const handleFileAction = useCallback(async (action, file) => {
+    try {
+      switch (action) {
+        case 'restore': {
+          if (!file.canRestore) {
+            alert('This file cannot be restored because it has expired.');
+            return;
+          }
+          await fileService.restoreTrashItem(file.trashItemId);
+          await loadTrash();
+          return;
         }
-        break;
-      case 'permanentDelete':
-        const deleteConfirmed = window.confirm('Are you sure you want to permanently delete this file? This action cannot be undone.');
-        if (deleteConfirmed) {
-          console.log('Permanently deleting file:', file);
-          // TODO: Call API to permanently delete file
+        case 'permanentDelete': {
+          const ok = window.confirm('Are you sure you want to permanently delete this file? This action cannot be undone.');
+          if (!ok) return;
+          await fileService.permanentlyDeleteTrashItem(file.trashItemId);
+          await loadTrash();
+          return;
         }
-        break;
-      case 'delete':
-        const deleteConfirmed2 = window.confirm('Are you sure you want to permanently delete this file? This action cannot be undone.');
-        if (deleteConfirmed2) {
-          console.log('Permanently deleting file:', file);
-          // TODO: Call API to permanently delete file
-        }
-        break;
-      default:
-        console.log('Unknown action:', action);
+        default:
+          return;
+      }
+    } catch (e) {
+      console.warn('Trash action failed:', e);
+      alert('Trash action failed. Please try again.');
     }
-  }, []);
+  }, [loadTrash]);
 
-  const handleBulkAction = useCallback((action) => {
+
+  const handleBulkAction = useCallback(async (action) => {
     if (selectedFiles.length === 0) {
       alert('Please select files first.');
       return;
     }
 
-    switch (action) {
-      case 'restore':
-        const restorableFiles = selectedFiles.filter(file => file.canRestore);
-        if (restorableFiles.length === 0) {
-          alert('Selected files cannot be restored because they have been permanently deleted.');
-        } else if (restorableFiles.length < selectedFiles.length) {
-          const restoreConfirmed = window.confirm(`${selectedFiles.length - restorableFiles.length} files cannot be restored because they have been permanently deleted. Continue with ${restorableFiles.length} files?`);
-          if (restoreConfirmed) {
-            console.log('Restoring files:', restorableFiles);
-            // TODO: Call API to restore files
+    try {
+      switch (action) {
+        case 'restore': {
+          const restorableFiles = selectedFiles.filter(file => file.canRestore);
+          if (restorableFiles.length === 0) {
+            alert('Selected files cannot be restored because they have expired.');
+            return;
           }
-        } else {
-          console.log('Restoring files:', restorableFiles);
-          // TODO: Call API to restore files
+
+          if (restorableFiles.length < selectedFiles.length) {
+            const ok = window.confirm(
+              `${selectedFiles.length - restorableFiles.length} item(s) cannot be restored because they have expired. Continue with ${restorableFiles.length}?`
+            );
+            if (!ok) return;
+          }
+
+          await Promise.all(restorableFiles.map(f => fileService.restoreTrashItem(f.trashItemId)));
+          await loadTrash();
+          return;
         }
-        break;
-      case 'permanentDelete':
-        const permanentDeleteConfirmed = window.confirm(`Are you sure you want to permanently delete ${selectedFiles.length} file(s)? This action cannot be undone.`);
-        if (permanentDeleteConfirmed) {
-          console.log('Permanently deleting files:', selectedFiles);
-          // TODO: Call API to permanently delete files
+
+        case 'permanentDelete': {
+          const ok = window.confirm(`Are you sure you want to permanently delete ${selectedFiles.length} file(s)? This action cannot be undone.`);
+          if (!ok) return;
+
+          await Promise.all(selectedFiles.map(f => fileService.permanentlyDeleteTrashItem(f.trashItemId)));
+          await loadTrash();
+          return;
         }
-        break;
-      case 'emptyTrash':
-        const emptyTrashConfirmed = window.confirm('Are you sure you want to empty trash? This will permanently delete all files in trash and cannot be undone.');
-        if (emptyTrashConfirmed) {
-          console.log('Emptying trash');
-          // TODO: Call API to empty trash
+
+        case 'emptyTrash': {
+          const ok = window.confirm('Are you sure you want to empty trash? This will permanently delete all items in trash and cannot be undone.');
+          if (!ok) return;
+
+          await fileService.emptyTrash();
+          await loadTrash();
+          return;
         }
-        break;
-      default:
-        console.log('Unknown action:', action);
+
+        default:
+          return;
+      }
+    } catch (e) {
+      console.warn('Bulk trash action failed:', e);
+      alert('Trash action failed. Please try again.');
     }
-  }, [selectedFiles]);
+  }, [selectedFiles, loadTrash]);
+
+
 
   const sortedFiles = useCallback(() => {
     const sorted = [...trashFiles];
@@ -333,7 +306,7 @@ function TrashPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-md">
                   {sortedFiles().map((file) => (
                     <div
-                      key={file.id}
+                      key={file.trashItemId}
                       className={`group relative bg-white border border-outline-variant rounded-lg p-sm hover:border-primary hover:shadow-md transition-all cursor-pointer ${
                         !file.canRestore ? 'opacity-60' : ''
                       }`}
@@ -426,12 +399,13 @@ function TrashPage() {
                     <tbody>
                       {sortedFiles().map((file) => (
                         <tr
-                          key={file.id}
+                          key={file.trashItemId}
                           className={`border-b border-outline-variant hover:bg-surface-container-low cursor-pointer ${
                             !file.canRestore ? 'opacity-60' : ''
                           }`}
                           onDoubleClick={() => file.canRestore && handleFileAction('restore', file)}
                         >
+
                           <td className="px-md py-sm">
                             <div className="flex items-center gap-sm">
                               <span className="material-symbols-outlined text-primary">
@@ -462,12 +436,12 @@ function TrashPage() {
                             <div className="flex justify-end gap-1">
                               <input
                                 type="checkbox"
-                                checked={selectedFiles.some(f => f.id === file.id)}
+                                checked={selectedFiles.some(f => f.trashItemId === file.trashItemId)}
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setSelectedFiles(prev => [...prev, file]);
                                   } else {
-                                    setSelectedFiles(prev => prev.filter(f => f.id !== file.id));
+                                    setSelectedFiles(prev => prev.filter(f => f.trashItemId !== file.trashItemId));
                                   }
                                 }}
                                 className="mr-sm"

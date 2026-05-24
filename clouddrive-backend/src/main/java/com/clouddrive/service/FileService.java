@@ -25,7 +25,24 @@ public interface FileService {
 
     ShareFileResponse generateShareLink(Long userId, Long fileId);
 
+    // Starred files
+    List<FileUploadResponse> getStarredFiles(Long userId);
+
+    void starFile(Long userId, Long fileId);
+
+    void unstarFile(Long userId, Long fileId);
+
     // Recently uploaded files (DB-based)
     java.util.List<com.clouddrive.dto.FileUploadResponse> getRecentFiles(Long userId, Integer limit);
+
+    com.clouddrive.dto.StorageResponse getStorageForUser(Long userId);
+
+    // Trash
+    java.util.List<com.clouddrive.dto.TrashItemResponse> listTrashItems(Long userId);
+    void restoreTrashItem(Long userId, Long trashItemId);
+    void permanentlyDeleteTrashItem(Long userId, Long trashItemId);
+    void emptyTrash(Long userId);
 }
+
+
 

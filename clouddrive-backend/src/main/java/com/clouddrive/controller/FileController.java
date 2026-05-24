@@ -121,5 +121,74 @@ public class FileController {
     ) {
         return ResponseEntity.ok(fileService.getRecentFiles(currentUser.getUserId(), limit));
     }
+
+    @GetMapping("/storage")
+    public ResponseEntity<com.clouddrive.dto.StorageResponse> storage(
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        return ResponseEntity.ok(fileService.getStorageForUser(currentUser.getUserId()));
+    }
+
+    // Starred files
+    @GetMapping("/starred")
+    public ResponseEntity<List<FileUploadResponse>> getStarredFiles(
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        return ResponseEntity.ok(fileService.getStarredFiles(currentUser.getUserId()));
+    }
+
+    @PostMapping("/{id}/star")
+    public ResponseEntity<Void> starFile(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable("id") Long id
+    ) {
+        fileService.starFile(currentUser.getUserId(), id);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}/star")
+    public ResponseEntity<Void> unstarFile(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable("id") Long id
+    ) {
+        fileService.unstarFile(currentUser.getUserId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Trash
+    @GetMapping("/trash")
+    public ResponseEntity<java.util.List<com.clouddrive.dto.TrashItemResponse>> listTrashItems(
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        return ResponseEntity.ok(fileService.listTrashItems(currentUser.getUserId()));
+    }
+
+    @PostMapping("/trash/{trashItemId}/restore")
+    public ResponseEntity<Void> restoreTrashItem(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable("trashItemId") Long trashItemId
+    ) {
+        fileService.restoreTrashItem(currentUser.getUserId(), trashItemId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/trash/{trashItemId}/permanent-delete")
+    public ResponseEntity<Void> permanentlyDeleteTrashItem(
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            @PathVariable("trashItemId") Long trashItemId
+    ) {
+        fileService.permanentlyDeleteTrashItem(currentUser.getUserId(), trashItemId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/trash/empty")
+    public ResponseEntity<Void> emptyTrash(
+            @AuthenticationPrincipal CustomUserDetails currentUser
+    ) {
+        fileService.emptyTrash(currentUser.getUserId());
+        return ResponseEntity.noContent().build();
+    }
 }
+
+
 

@@ -246,10 +246,14 @@ public class FileServiceImpl implements FileService {
         
         // Create trash item
         TrashItem trashItem = new TrashItem(user, file, file.getName(), file.getPath());
-        trashItem.setDeletedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        trashItem.setDeletedAt(now);
+        // Keep in trash for 30 days
+        trashItem.setAutoDeleteAt(now.plusDays(30));
         trashRepository.save(trashItem);
         
         fileRepository.save(file);
+
     }
 
     @Override
@@ -272,37 +276,62 @@ public class FileServiceImpl implements FileService {
         }
     }
 
+    @Override
     @Transactional
-    public void starFile(Long fileId, User user) {
+    public List<FileUploadResponse> getStarredFiles(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<FileItem> files = fileRepository.findByOwnerAndIsStarredTrueAndIsTrashedFalse(user);
+
+        return files.stream()
+                .map(file -> new FileUploadResponse(
+                        file.getId(),
+                        file.getName(),
+                        file.getPath(),
+                        file.getType(),
+                        file.getSize(),
+                        file.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void starFile(Long userId, Long fileId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
         FileItem file = fileRepository.findByIdAndOwner(fileId, user)
                 .orElseThrow(() -> new RuntimeException("File not found"));
-        
+
         file.setIsStarred(true);
         fileRepository.save(file);
-        
-        // Create starred item
+
         StarredItem starredItem = new StarredItem(user, file);
         starredRepository.save(starredItem);
     }
 
+    @Override
     @Transactional
-    public void unstarFile(Long fileId, User user) {
+    public void unstarFile(Long userId, Long fileId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
         FileItem file = fileRepository.findByIdAndOwner(fileId, user)
                 .orElseThrow(() -> new RuntimeException("File not found"));
-        
+
         file.setIsStarred(false);
         fileRepository.save(file);
-        
-        // Remove starred item
+
         starredRepository.findByUserAndFile(user, file)
-                .ifPresent(starredItem -> {
-                    starredRepository.delete(starredItem);
-                });
+                .ifPresent(starredItem -> starredRepository.delete(starredItem));
     }
 
     @Override
     @Transactional
     public List<FileUploadResponse> searchUserFiles(Long userId, String query) {
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
@@ -390,7 +419,79 @@ public class FileServiceImpl implements FileService {
         trashRepository.delete(trashItem);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.List<com.clouddrive.dto.TrashItemResponse> listTrashItems(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return trashRepository.findByUserOrderByDeletedAtDesc(user).stream()
+                .map(ti -> {
+                    LocalDateTime autoDeleteAt = ti.getAutoDeleteAt();
+                    boolean canRestore = autoDeleteAt == null || autoDeleteAt.isAfter(now);
+
+                    Long fileId = ti.getFile() != null ? ti.getFile().getId() : null;
+                    String name = ti.getOriginalName();
+                    String type = ti.getFile() != null ? ti.getFile().getType() : (ti.getFolder() != null ? "folder" : "unknown");
+                    Long size = ti.getFile() != null ? ti.getFile().getSize() : 0L;
+
+                    return new com.clouddrive.dto.TrashItemResponse(
+                            ti.getId(),
+                            fileId,
+                            name,
+                            type,
+                            size,
+                            ti.getOriginalPath(),
+                            ti.getDeletedAt(),
+                            autoDeleteAt,
+                            canRestore
+                    );
+                })
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void restoreTrashItem(Long userId, Long trashItemId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        TrashItem trashItem = trashRepository.findByIdAndUserOptional(trashItemId, user)
+                .orElseThrow(() -> new RuntimeException("Trash item not found"));
+
+        LocalDateTime now = LocalDateTime.now();
+        if (trashItem.getAutoDeleteAt() != null && trashItem.getAutoDeleteAt().isBefore(now)) {
+            throw new RuntimeException("Trash item expired and cannot be restored");
+        }
+
+        restoreFromTrash(trashItemId, user);
+    }
+
+    @Override
+    @Transactional
+    public void permanentlyDeleteTrashItem(Long userId, Long trashItemId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        permanentlyDeleteFromTrash(trashItemId, user);
+    }
+
+    @Override
+    @Transactional
+    public void emptyTrash(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Empty all trash items for this user
+        java.util.List<TrashItem> items = trashRepository.findByUserOrderByDeletedAtDesc(user);
+        for (TrashItem item : items) {
+            permanentlyDeleteFromTrash(item.getId(), user);
+        }
+    }
+
     private String getFileType(String contentType) {
+
         if (contentType == null) return "unknown";
         
         if (contentType.startsWith("image/")) return "image";
@@ -436,5 +537,22 @@ public class FileServiceImpl implements FileService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate presigned URL", e);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.clouddrive.dto.StorageResponse getStorageForUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Long storageUsed = fileRepository.getTotalStorageUsedByUser(user);
+        Long storageQuota = user.getStorageQuota();
+
+        double storagePercentage = 0.0;
+        if (storageQuota != null && storageQuota > 0) {
+            storagePercentage = (storageUsed.doubleValue() / storageQuota.doubleValue()) * 100.0;
+        }
+
+        return new com.clouddrive.dto.StorageResponse(storageUsed, storageQuota, storagePercentage);
     }
 }

@@ -17,7 +17,7 @@ import fileService from "../services/fileService";
 import favoritesService from "../services/favoritesService";
 import versioningService from "../services/versioningService";
 import activityService from "../services/activityService";
-import taggingService from "../services/taggingService";
+import { useAuth } from "../contexts/AuthContext";
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -315,10 +315,16 @@ function DashboardPage() {
     }
   }, [loadFavorites, showNotification]);
 
-  // Load favorites on component mount
+  // Scope favorites to the authenticated user
+  const { user } = useAuth();
+
   useEffect(() => {
+    favoritesService.setUser(user?.userId);
+    // loadFavorites() depends on favoritesService state, so keep it in one place
     loadFavorites();
-  }, [loadFavorites]);
+  }, [user?.userId, loadFavorites]);
+
+
 
   // =========================
   // Versioning Functions
