@@ -99,6 +99,6 @@ Started CloudDriveApplication on port 8080
 
 ## Next Steps After Success
 
-1. Test authentication: `POST http://localhost:8080/auth/register`
-2. Test API health: `GET http://localhost:8080/auth/health`
+1. Test authentication: `POST https://cloud-drive-1.onrender.com/auth/register`
+2. Test API health: `GET https://cloud-drive-1.onrender.com/auth/health`
 3. Start frontend: `cd ../clouddrive-frontend && npm run dev`
