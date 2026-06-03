@@ -17,4 +17,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Helps identify which URL is returning 404/canceled in deployed env
+    console.error("API error:", {
+      url: error?.config?.url,
+      method: error?.config?.method,
+      status: error?.response?.status,
+      data: error?.response?.data,
+      message: error?.message,
+    });
+    return Promise.reject(error);
+  }
+);
+
 export default api;
