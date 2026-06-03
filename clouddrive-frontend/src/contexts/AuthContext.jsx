@@ -13,7 +13,8 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [initializing, setInitializing] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Check authentication status on mount
@@ -58,7 +59,7 @@ export const AuthProvider = ({ children }) => {
         console.error("Auth initialization error:", err);
         authService.removeToken();
       } finally {
-        setLoading(false);
+        setInitializing(false);
       }
     };
 
@@ -68,7 +69,7 @@ export const AuthProvider = ({ children }) => {
   // Login function - step 1
   const login = async (email, password) => {
     try {
-      setLoading(true);
+      setActionLoading(true);
       setError(null);
       const response = await authService.login(email, password);
       return response; // Just return response to proceed to OTP
@@ -77,14 +78,14 @@ export const AuthProvider = ({ children }) => {
       setError(errorMessage);
       throw err;
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   // Verify Login OTP - step 2
   const verifyLoginOtp = async (email, otp) => {
     try {
-      setLoading(true);
+      setActionLoading(true);
       setError(null);
       const response = await authService.verifyLoginOtp(email, otp);
       
@@ -100,14 +101,14 @@ export const AuthProvider = ({ children }) => {
       setError(errorMessage);
       throw err;
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   // Register function - step 1
   const register = async (name, email, password) => {
     try {
-      setLoading(true);
+      setActionLoading(true);
       setError(null);
       const response = await authService.register(name, email, password);
       return response; // Just return response to proceed to OTP
@@ -116,14 +117,14 @@ export const AuthProvider = ({ children }) => {
       setError(errorMessage);
       throw err;
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
   // Verify Signup OTP - step 2 (just confirms account, redirects to login)
   const verifySignupOtp = async (email, otp) => {
     try {
-      setLoading(true);
+      setActionLoading(true);
       setError(null);
       const response = await authService.verifySignupOtp(email, otp);
       // Don't store token or set user - user will log in fresh
@@ -133,7 +134,7 @@ export const AuthProvider = ({ children }) => {
       setError(errorMessage);
       throw err;
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -151,7 +152,10 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
-    loading,
+    // Backward compatibility: components that use `loading` should typically mean "action is in progress"
+    loading: actionLoading,
+    initializing,
+    actionLoading,
     error,
     isAuthenticated: !!user,
     login,
