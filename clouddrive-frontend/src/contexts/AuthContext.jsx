@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
 
   // Check authentication status on mount
   useEffect(() => {
-    const initAuth = () => {
+    const initAuth = () => {/*  */
       try {
         console.log('AuthContext: Initializing authentication...');
         const token = authService.getToken();

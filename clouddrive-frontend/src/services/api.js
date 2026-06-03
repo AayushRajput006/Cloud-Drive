@@ -1,8 +1,9 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL:"https://cloud-drive-1.onrender.com",
+  baseURL: "https://cloud-drive-1.onrender.com",
   timeout: 15000,
+  withCredentials: false,
   headers: {
     "Content-Type": "application/json"
   }
