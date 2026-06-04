@@ -1,0 +1,236 @@
+/* Ported landing-page styles from the provided HTML design */
+
+.glass-nav {
+  /* more translucent by default */
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.hero-gradient {
+  background: radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.08) 0%, rgba(248, 249, 250, 0) 70%);
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float-subtle {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(1deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+.animate-float-subtle {
+  animation: float-subtle 4s ease-in-out infinite;
+}
+
+/* Reveal animations
+   React port doesn't currently toggle `.active` via IntersectionObserver.
+   So we self-start these animations on load. */
+@keyframes bb-reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bb-reveal-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bb-reveal-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bb-reveal-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* React port: ensure landing content is never stuck hidden.
+   These sections must remain visible even if IntersectionObserver "active" toggles are not running. */
+.reveal,
+.reveal-left,
+.reveal-right,
+.reveal-scale {
+  opacity: 1 !important;
+  transform: none !important;
+  animation: none !important;
+}
+
+/* Keep `.active` compatibility if IntersectionObserver is added later */
+.reveal.active,
+.reveal-left.active,
+.reveal-right.active,
+.reveal-scale.active {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+/* Bar chart drawing animation */
+.bar-grow {
+  transform-origin: bottom;
+  transform: scaleY(0);
+  transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bar-grow.active {
+  transform: scaleY(1);
+}
+
+/* Analytics weekly chart (ensure it is visible) */
+.chart-container,
+.chart-container * {
+  display: block;
+}
+
+.chart-container > div {
+  width: 100%;
+  min-width: 28px;
+  opacity: 1;
+}
+
+.bar-grow {
+  opacity: 1; /* previously could become invisible if reveal toggling isn't set */
+}
+
+/* If the React port uses IntersectionObserver classes, keep compatibility */
+.bar-grow:not(.active) {
+  opacity: 1;
+  transform: scaleY(0);
+}
+
+@keyframes gradient-shift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -20px) scale(1.08); }
+}
+
+@keyframes gradient-shift-alt {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-25px, 15px) scale(1.05); }
+}
+
+.hero-orb {
+  animation: gradient-shift 12s ease-in-out infinite;
+}
+
+.hero-orb-alt {
+  animation: gradient-shift-alt 10s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.pricing-popular {
+  background: linear-gradient(
+    135deg,
+    rgba(79, 70, 229, 0.06) 0%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(79, 70, 229, 0.04) 100%
+  );
+  background-size: 200% auto;
+}
+.pricing-popular.active-shimmer {
+  animation: shimmer 4s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.35); }
+  70% { box-shadow: 0 0 0 12px rgba(79, 70, 229, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+}
+.pulse-on-hover:hover {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero-enter {
+  animation: fade-in-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.hero-enter-delay-1 { animation-delay: 0.15s; }
+.hero-enter-delay-2 { animation-delay: 0.3s; }
+.hero-enter-delay-3 { animation-delay: 0.45s; }
+.hero-enter-delay-4 { animation-delay: 0.6s; }
+
+.price-amount {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+#billing-knob.annual {
+  transform: translateX(24px);
+}
+.price-amount.switching {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.timeline-step .step-circle {
+  transition: transform 0.35s ease, background-color 0.35s ease, color 0.35s ease;
+}
+.timeline-step:hover .step-circle {
+  transform: scale(1.12) rotate(5deg);
+}
+
+.nav-scrolled {
+  box-shadow: 0 8px 32px rgba(53, 37, 205, 0.12);
+}
+
+  
