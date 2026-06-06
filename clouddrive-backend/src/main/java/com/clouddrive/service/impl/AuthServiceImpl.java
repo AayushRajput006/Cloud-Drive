@@ -1,13 +1,10 @@
 package com.clouddrive.service.impl;
 
-import com.clouddrive.dto.*;
-import com.clouddrive.entity.User;
-import com.clouddrive.exception.BadRequestException;
-import com.clouddrive.repository.UserRepository;
-import com.clouddrive.security.CustomUserDetails;
-import com.clouddrive.security.JwtService;
-import com.clouddrive.service.AuthService;
-import com.clouddrive.service.EmailService;
+import java.time.LocalDateTime;
+import java.util.Random;
+import java.util.concurrent.Executor;
+
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -15,8 +12,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Random;
+import com.clouddrive.dto.AuthResponse;
+import com.clouddrive.dto.LoginRequest;
+import com.clouddrive.dto.MessageResponse;
+import com.clouddrive.dto.RegisterRequest;
+import com.clouddrive.dto.ResendOtpRequest;
+import com.clouddrive.dto.VerifyOtpRequest;
+import com.clouddrive.entity.User;
+import com.clouddrive.exception.BadRequestException;
+import com.clouddrive.repository.UserRepository;
+import com.clouddrive.security.CustomUserDetails;
+import com.clouddrive.security.JwtService;
+import com.clouddrive.service.AuthService;
+import com.clouddrive.service.EmailService;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -26,15 +34,22 @@ public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final Executor emailTaskExecutor;
 
-    public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, 
-                         AuthenticationManager authenticationManager, JwtService jwtService,
-                         EmailService emailService) {
+    public AuthServiceImpl(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            AuthenticationManager authenticationManager,
+            JwtService jwtService,
+            EmailService emailService,
+            @Qualifier("emailTaskExecutor") Executor emailTaskExecutor
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.emailService = emailService;
+        this.emailTaskExecutor = emailTaskExecutor;
     }
 
     private String generateOtp() {
@@ -66,7 +81,12 @@ public class AuthServiceImpl implements AuthService {
         user.setFailedAttempts(0);
         userRepository.save(user);
 
-        emailService.sendOtpEmail(user.getEmail(), user.getName(), otp);
+        // Never block the HTTP request thread on SMTP latency
+        final String emailTo = user.getEmail();
+        final String nameTo = user.getName();
+        final String otpToSend = otp;
+
+        emailTaskExecutor.execute(() -> emailService.sendOtpEmail(emailTo, nameTo, otpToSend));
 
         return new MessageResponse("OTP sent to your email");
     }
@@ -97,9 +117,15 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public MessageResponse login(LoginRequest request) {
+        long t0 = System.currentTimeMillis();
+        System.out.println("AuthServiceImpl.login: start t=" + t0);
+
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(), request.password())
         );
+
+        long t1 = System.currentTimeMillis();
+        System.out.println("AuthServiceImpl.login: after authenticate dt=" + (t1 - t0) + "ms");
 
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         User user = userRepository.findByEmail(userDetails.getUsername())
@@ -116,7 +142,18 @@ public class AuthServiceImpl implements AuthService {
         user.setFailedAttempts(0);
         userRepository.save(user);
 
-        emailService.sendOtpEmail(user.getEmail(), user.getName(), otp);
+        long t2 = System.currentTimeMillis();
+        System.out.println("AuthServiceImpl.login: after saving otp dt=" + (t2 - t0) + "ms");
+
+        // Never block the HTTP request thread on SMTP latency
+        final String email = user.getEmail();
+        final String name = user.getName();
+        final String otpToSend = otp;
+
+        emailTaskExecutor.execute(() -> emailService.sendOtpEmail(email, name, otpToSend));
+
+        long t3 = System.currentTimeMillis();
+        System.out.println("AuthServiceImpl.login: after enqueue email dt=" + (t3 - t0) + "ms");
 
         return new MessageResponse("OTP sent to your email for login");
     }
@@ -160,7 +197,12 @@ public class AuthServiceImpl implements AuthService {
         user.setFailedAttempts(0);
         userRepository.save(user);
 
-        emailService.sendOtpEmail(user.getEmail(), user.getName(), otp);
+        // Never block the HTTP request thread on SMTP latency
+        final String email = user.getEmail();
+        final String name = user.getName();
+        final String otpToSend = otp;
+
+        emailTaskExecutor.execute(() -> emailService.sendOtpEmail(email, name, otpToSend));
 
         return new MessageResponse("OTP resent to your email");
     }
