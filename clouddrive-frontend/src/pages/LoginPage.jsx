@@ -6,7 +6,7 @@ import { authService } from "../services/authService";
 function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, verifyLoginOtp, loading, error, clearError } = useAuth();
+  const { login, verifyLoginOtp, actionLoading, error, clearError } = useAuth();
   
   const [step, setStep] = useState(1);
   const [resendCountdown, setResendCountdown] = useState(0);
@@ -84,7 +84,9 @@ function LoginPage() {
         await login(formData.email, formData.password);
         setStep(2);
         setResendCountdown(60);
-      } catch (err) {}
+      } catch (err) {
+        console.error("Login failed:", err);
+      }
     } else {
       const otpValue = otp.join("");
       if (otpValue.length !== 6) return;
@@ -92,7 +94,9 @@ function LoginPage() {
       try {
         await verifyLoginOtp(formData.email, otpValue);
         navigate("/dashboard");
-      } catch (err) {}
+      } catch (err) {
+        console.error("OTP verification failed:", err);
+      }
     }
   };
 
@@ -102,7 +106,9 @@ function LoginPage() {
       await authService.resendOtp(formData.email);
       setResendCountdown(60);
       clearError();
-    } catch (err) {}
+    } catch (err) {
+      console.error("Resend OTP failed:", err);
+    }
   };
 
   return (
@@ -157,7 +163,7 @@ function LoginPage() {
                   className="w-full h-12 px-md bg-surface border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   placeholder="name@company.com"
                   required
-                  disabled={loading}
+                  disabled={actionLoading}
                 />
                 <input
                   name="password"
@@ -167,7 +173,7 @@ function LoginPage() {
                   className="w-full h-12 px-md bg-surface border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   placeholder="••••••••"
                   required
-                  disabled={loading}
+                  disabled={actionLoading}
                 />
               </>
             ) : (
@@ -183,7 +189,7 @@ function LoginPage() {
                     onKeyDown={(e) => handleOtpKeyDown(index, e)}
                     onPaste={handleOtpPaste}
                     className="w-12 h-14 text-center text-xl font-semibold bg-surface border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                    disabled={loading}
+                    disabled={actionLoading}
                   />
                 ))}
               </div>
@@ -192,9 +198,9 @@ function LoginPage() {
             <button
               type="submit"
               className="w-full h-12 bg-primary text-on-primary font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-hover transition-colors shadow-sm"
-              disabled={loading || (step === 1 && (!formData.email || !formData.password)) || (step === 2 && otp.join("").length !== 6)}
+              disabled={actionLoading || (step === 1 && (!formData.email || !formData.password)) || (step === 2 && otp.join("").length !== 6)}
             >
-              {loading ? (
+              {actionLoading ? (
                 <span className="flex items-center justify-center gap-sm">
                   <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-on-primary"></span>
                   {step === 1 ? "Signing In..." : "Verifying..."}
@@ -210,7 +216,7 @@ function LoginPage() {
               <button
                 type="button"
                 onClick={handleResendOtp}
-                disabled={resendCountdown > 0 || loading}
+                disabled={resendCountdown > 0 || actionLoading}
                 className={`text-body-md font-semibold transition-colors ${resendCountdown > 0 ? "text-on-surface-variant cursor-not-allowed" : "text-primary hover:text-primary-hover"}`}
               >
                 {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : "Resend code"}
